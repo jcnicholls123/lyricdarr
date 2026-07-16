@@ -1,0 +1,23 @@
+services:
+  lyricdarr:
+    # Once you've pushed this repo to GitHub, the included Actions workflow
+    # builds and publishes this image automatically. Replace YOUR_GITHUB_USERNAME
+    # below (all lowercase) and use this image tag directly in TrueNAS's
+    # Custom App GUI — no local build needed.
+    image: ghcr.io/YOUR_GITHUB_USERNAME/lyricdarr:latest
+    # For local testing before pushing to GitHub, use `build: .` instead of `image:`.
+    container_name: lyricdarr
+    restart: unless-stopped
+    ports:
+      - "8686:8686"
+    environment:
+      - MUSIC_DIR=/music
+      - SCAN_INTERVAL_HOURS=6
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      # Point this at the SAME music library path Lidarr/Plex use, read-write,
+      # since Lyricdarr writes .lrc files next to each track.
+      - /mnt/your-pool/media/music:/music
+      # Persistent app config/database (mirrors how Sonarr/Radarr/Bazarr store /config)
+      - ./config:/config

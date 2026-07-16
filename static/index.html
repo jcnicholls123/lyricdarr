@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lyricdarr</title>
+<style>
+  :root {
+    --ink: #14171f;
+    --ink-raised: #1b1f2a;
+    --ink-line: #2a2f3d;
+    --gold: #d4a24c;
+    --gold-dim: #8a6d3a;
+    --text: #e8e6df;
+    --text-dim: #9299ab;
+    --green: #6fae7a;
+    --red: #c1665f;
+    --blue: #6d94c9;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ink);
+    color: var(--text);
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+    min-height: 100vh;
+  }
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    padding: 28px 36px 20px;
+    border-bottom: 1px solid var(--ink-line);
+  }
+  .brand {
+    font-family: "Georgia", serif;
+    font-size: 26px;
+    letter-spacing: 0.02em;
+    color: var(--gold);
+  }
+  .brand-mark {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    background: var(--gold);
+    border-radius: 2px;
+    margin-right: 10px;
+    transform: rotate(45deg);
+  }
+  .tagline {
+    color: var(--text-dim);
+    font-size: 13px;
+    font-family: "Courier New", monospace;
+  }
+  main { padding: 28px 36px 60px; max-width: 1100px; margin: 0 auto; }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  .stat-card {
+    background: var(--ink-raised);
+    border: 1px solid var(--ink-line);
+    border-radius: 6px;
+    padding: 16px 18px;
+  }
+  .stat-num {
+    font-family: "Courier New", monospace;
+    font-size: 28px;
+    font-weight: 700;
+  }
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 4px;
+  }
+  .stat-card.found .stat-num { color: var(--green); }
+  .stat-card.missing .stat-num { color: var(--red); }
+  .stat-card.total .stat-num { color: var(--gold); }
+
+  .actions {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  button {
+    background: var(--gold);
+    color: #1a1508;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 5px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 13px;
+    transition: opacity 0.15s ease;
+  }
+  button:hover { opacity: 0.85; }
+  button:disabled { opacity: 0.4; cursor: wait; }
+  button.secondary {
+    background: transparent;
+    border: 1px solid var(--ink-line);
+    color: var(--text);
+  }
+  #status-msg {
+    color: var(--text-dim);
+    font-size: 13px;
+    font-family: "Courier New", monospace;
+  }
+
+  .filters {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+    align-items: center;
+  }
+  select, input[type=text] {
+    background: var(--ink-raised);
+    border: 1px solid var(--ink-line);
+    color: var(--text);
+    padding: 8px 12px;
+    border-radius: 5px;
+    font-size: 13px;
+  }
+  input[type=text] { flex: 1; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th {
+    text-align: left;
+    padding: 10px 12px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--ink-line);
+  }
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--ink-line);
+  }
+  tr:hover td { background: var(--ink-raised); }
+  .badge {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge.found, .badge.found_unsynced { background: rgba(111,174,122,0.15); color: var(--green); }
+  .badge.pending { background: rgba(109,148,201,0.15); color: var(--blue); }
+  .badge.not_found, .badge.error { background: rgba(193,102,95,0.15); color: var(--red); }
+  .badge.instrumental { background: rgba(154,154,154,0.15); color: var(--text-dim); }
+  .retry-btn {
+    background: none;
+    border: 1px solid var(--ink-line);
+    color: var(--text-dim);
+    padding: 4px 10px;
+    font-size: 11px;
+  }
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-dim);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><span class="brand-mark"></span>Lyricdarr</div>
+  <div class="tagline">synced lyrics, fetched and filed — for your music library</div>
+</header>
+
+<main>
+  <div class="stats-row" id="stats"></div>
+
+  <div class="actions">
+    <button id="scan-btn" onclick="doScan()">Scan library</button>
+    <button id="fetch-btn" onclick="doFetch()">Download missing lyrics</button>
+    <span id="status-msg"></span>
+  </div>
+
+  <div class="filters">
+    <select id="status-filter" onchange="loadTracks()">
+      <option value="">All statuses</option>
+      <option value="pending">Pending</option>
+      <option value="found">Found (synced)</option>
+      <option value="found_unsynced">Found (unsynced)</option>
+      <option value="not_found">Not found</option>
+      <option value="instrumental">Instrumental</option>
+      <option value="error">Error</option>
+    </select>
+    <input type="text" id="search-box" placeholder="Search artist, title, album..." onkeyup="debouncedLoad()">
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>Artist</th><th>Title</th><th>Album</th><th>Status</th><th></th></tr>
+    </thead>
+    <tbody id="track-rows"></tbody>
+  </table>
+  <div class="empty-state" id="empty-state" style="display:none">No tracks yet — click "Scan library" to get started.</div>
+</main>
+
+<script>
+let debounceTimer;
+function debouncedLoad() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(loadTracks, 300);
+}
+
+async function loadStats() {
+  const res = await fetch('/api/status');
+  const data = await res.json();
+  const found = (data.by_status.found || 0) + (data.by_status.found_unsynced || 0);
+  const missing = data.total_tracks - found - (data.by_status.instrumental || 0);
+  const stats = [
+    { label: 'Total tracks', value: data.total_tracks, cls: 'total' },
+    { label: 'Lyrics found', value: found, cls: 'found' },
+    { label: 'Missing', value: missing, cls: 'missing' },
+    { label: 'Instrumental', value: data.by_status.instrumental || 0, cls: '' },
+  ];
+  document.getElementById('stats').innerHTML = stats.map(s => `
+    <div class="stat-card ${s.cls}">
+      <div class="stat-num">${s.value}</div>
+      <div class="stat-label">${s.label}</div>
+    </div>
+  `).join('');
+}
+
+async function loadTracks() {
+  const status = document.getElementById('status-filter').value;
+  const search = document.getElementById('search-box').value;
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  if (search) params.set('search', search);
+  const res = await fetch('/api/tracks?' + params.toString());
+  const tracks = await res.json();
+
+  const rows = document.getElementById('track-rows');
+  const emptyState = document.getElementById('empty-state');
+
+  if (tracks.length === 0) {
+    rows.innerHTML = '';
+    emptyState.style.display = 'block';
+    return;
+  }
+  emptyState.style.display = 'none';
+
+  rows.innerHTML = tracks.map(t => `
+    <tr>
+      <td>${escapeHtml(t.artist || '—')}</td>
+      <td>${escapeHtml(t.title || '—')}</td>
+      <td>${escapeHtml(t.album || '—')}</td>
+      <td><span class="badge ${t.status}">${t.status.replace('_', ' ')}</span></td>
+      <td>${t.status !== 'found' ? `<button class="retry-btn" onclick="retryTrack(${t.id})">Retry</button>` : ''}</td>
+    </tr>
+  `).join('');
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+async function retryTrack(id) {
+  await fetch(`/api/tracks/${id}/retry`, { method: 'POST' });
+  loadTracks();
+  loadStats();
+}
+
+async function doScan() {
+  const btn = document.getElementById('scan-btn');
+  const msg = document.getElementById('status-msg');
+  btn.disabled = true;
+  msg.textContent = 'Scanning library...';
+  const res = await fetch('/api/scan', { method: 'POST' });
+  const data = await res.json();
+  msg.textContent = `Scan complete — ${data.scanned_files} files scanned, ${data.new_tracks} new tracks added.`;
+  btn.disabled = false;
+  loadStats();
+  loadTracks();
+}
+
+async function doFetch() {
+  const btn = document.getElementById('fetch-btn');
+  const msg = document.getElementById('status-msg');
+  btn.disabled = true;
+  msg.textContent = 'Fetching lyrics from LRCLIB — this may take a while for large libraries...';
+  const res = await fetch('/api/fetch', { method: 'POST' });
+  const data = await res.json();
+  msg.textContent = `Done — found: ${data.found + (data.found_unsynced||0)}, not found: ${data.not_found}, instrumental: ${data.instrumental}, errors: ${data.error}.`;
+  btn.disabled = false;
+  loadStats();
+  loadTracks();
+}
+
+loadStats();
+loadTracks();
+setInterval(loadStats, 15000);
+</script>
+
+</body>
+</html>

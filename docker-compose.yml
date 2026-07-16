@@ -10,6 +10,8 @@ services:
       - SCAN_INTERVAL_HOURS=6
       - PUID=1000
       - PGID=1000
+      # Optional: require this token on the Lidarr webhook (POST /api/webhook/lidarr?token=...)
+      # - WEBHOOK_TOKEN=changeme
     volumes:
       # Same music library path Lidarr/Plex use, read-write,
       # since Lyricdarr writes .lrc files next to each track.

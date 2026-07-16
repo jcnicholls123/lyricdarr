@@ -115,18 +115,49 @@ Key endpoints:
 - `GET /api/library/tree?group_by=artist|album|song&search=` — library grouped for
   browsing, with a completion tally at each level
 - `POST /api/tracks/{id}/retry` — retry a single track
-- `GET /api/settings` / `POST /api/settings` — read or update `scan_interval_hours`
-  and `auto_scan_enabled` (persisted, reschedules the background job immediately)
+- `GET /api/settings` / `POST /api/settings` — read or update `scan_interval_hours`,
+  `auto_scan_enabled`, and `netease_fallback_enabled` (persisted, applied immediately)
+- `POST /api/webhook/lidarr` — see **Lidarr integration** below
+
+## Lyrics sources
+
+LRCLIB is tried first (`/get` exact match, then `/search` fuzzy match). If neither
+finds anything, and the "Use NetEase Cloud Music as a fallback" setting is on
+(default: on), it's queried as a second source — it's an unofficial endpoint (the
+same one NetEase's own web player calls, no API key needed) but has good synced-lyrics
+coverage, including plenty of non-Chinese/Western tracks. Toggle it off in Settings if
+you'd rather only ever use LRCLIB.
+
+Musixmatch was considered but skipped: their free developer API only returns a ~30%
+lyrics snippet, not full synced lyrics, unless you have a paid commercial license — not
+much of a fallback. If you have that kind of Musixmatch access, `app/netease.py` is a
+small, self-contained example of the provider shape (`search_lyrics(artist, title) ->
+{"synced", "plain", "instrumental"} | None`) to copy for your own provider module.
+
+## Lidarr integration
+
+To fetch lyrics right after Lidarr imports a new album instead of waiting for the
+next scheduled scan:
+
+1. In Lidarr, go to **Settings → Connect → +** → **Webhook**.
+2. **URL**: `http://<lyricdarr-host>:8787/api/webhook/lidarr`
+3. **Method**: `POST`
+4. Trigger on **On Import** and **On Upgrade** (or whichever import events you want).
+5. Save. Lidarr will now kick off a scan-and-fetch pass on this app every time it
+   imports something — new tracks show up without waiting on the schedule.
+
+Optional: set `WEBHOOK_TOKEN` in the container's environment to require a shared
+secret on that endpoint (anyone else on your LAN could otherwise trigger it). With it
+set, append `?token=<value>` to the webhook URL in Lidarr's connect settings (Lidarr's
+built-in webhook connector doesn't support custom headers, so the query param is the
+practical way to pass it).
 
 ## Notes / limitations (things to extend if you want to go further)
 
-- Only LRCLIB is used as a source right now. It has good coverage but isn't
-  exhaustive — you could add a second provider (e.g. Musixmatch, NetEase) as a
-  fallback for the `not_found` bucket.
 - No auth on the web UI — fine on an internal home network, but put it behind
   your reverse proxy / VPN like you would Sonarr or Radarr if exposing it further.
 - Tag reading assumes reasonably well-tagged files. Poorly tagged tracks (missing
-  artist/title) will get worse match rates from LRCLIB — same limitation LRCGET has.
-- There's no per-user auth, HTTPS, or rate-limit handling for LRCLIB — it's a
-  small free API, so it's polite to not hammer it on very large libraries; the
+  artist/title) will get worse match rates from either lyrics source.
+- There's no per-user auth, HTTPS, or rate-limit handling for LRCLIB/NetEase — they're
+  free public endpoints, so it's polite to not hammer them on very large libraries; the
   scheduled job naturally spreads load out over time as your library grows.

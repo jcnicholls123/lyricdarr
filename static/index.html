@@ -415,6 +415,11 @@
       <input type="checkbox" id="settings-auto-scan">
       <label for="settings-auto-scan">Enable automatic scan + fetch on a schedule</label>
     </div>
+    <div class="field checkbox">
+      <input type="checkbox" id="settings-netease">
+      <label for="settings-netease">Use NetEase Cloud Music as a fallback when LRCLIB has no match</label>
+    </div>
+    <div class="field" id="settings-webhook-hint" style="margin-bottom:0"></div>
     <div class="modal-actions">
       <button class="secondary" onclick="closeSettings()">Cancel</button>
       <button onclick="saveSettings()">Save</button>
@@ -762,6 +767,10 @@ async function openSettings() {
   document.getElementById('settings-music-dir').value = data.music_dir;
   document.getElementById('settings-interval').value = data.scan_interval_hours;
   document.getElementById('settings-auto-scan').checked = data.auto_scan_enabled;
+  document.getElementById('settings-netease').checked = data.netease_fallback_enabled;
+  document.getElementById('settings-webhook-hint').innerHTML = data.webhook_configured
+    ? '<label style="text-transform:none;font-size:12px;color:var(--text-dim)">Lidarr webhook token is set via WEBHOOK_TOKEN.</label>'
+    : '<label style="text-transform:none;font-size:12px;color:var(--text-dim)">Lidarr webhook: POST /api/webhook/lidarr (no token required — set WEBHOOK_TOKEN env var to require one).</label>';
   document.getElementById('settings-overlay').classList.add('open');
 }
 
@@ -772,10 +781,15 @@ function closeSettings() {
 async function saveSettings() {
   const interval = parseFloat(document.getElementById('settings-interval').value);
   const autoScan = document.getElementById('settings-auto-scan').checked;
+  const netease = document.getElementById('settings-netease').checked;
   await fetch('/api/settings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ scan_interval_hours: interval, auto_scan_enabled: autoScan }),
+    body: JSON.stringify({
+      scan_interval_hours: interval,
+      auto_scan_enabled: autoScan,
+      netease_fallback_enabled: netease,
+    }),
   });
   closeSettings();
 }

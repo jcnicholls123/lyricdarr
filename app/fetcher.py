@@ -2,8 +2,9 @@ import logging
 import os
 from datetime import datetime, timezone
 
-from app.db import get_conn
+from app.db import get_conn, get_setting
 from app import lrclib
+from app import netease
 
 logger = logging.getLogger("lyricdarr.fetcher")
 
@@ -27,6 +28,9 @@ def fetch_one(track_row) -> str:
         result = lrclib.get_lyrics(artist, title, album, duration)
         if result is None:
             result = lrclib.search_lyrics(artist, title)
+
+        if result is None and get_setting("netease_fallback_enabled", "true") == "true":
+            result = netease.search_lyrics(artist, title)
 
         if result is None:
             return "not_found"

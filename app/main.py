@@ -22,6 +22,7 @@ logger = logging.getLogger("lyricdarr.main")
 
 MUSIC_DIR = os.environ.get("MUSIC_DIR", "/music")
 ENV_SCAN_INTERVAL_HOURS = float(os.environ.get("SCAN_INTERVAL_HOURS", "6"))
+WEBHOOK_TOKEN = os.environ.get("WEBHOOK_TOKEN")
 SATISFIED_STATUSES = ("found", "found_unsynced", "instrumental")
 
 scheduler = BackgroundScheduler()
@@ -35,6 +36,10 @@ def _effective_scan_interval() -> float:
 
 def _auto_scan_enabled() -> bool:
     return get_setting("auto_scan_enabled", "true") == "true"
+
+
+def _netease_fallback_enabled() -> bool:
+    return get_setting("netease_fallback_enabled", "true") == "true"
 
 
 def _reschedule_auto_scan():
@@ -151,17 +156,42 @@ def api_fetch_start():
     return {"started": True}
 
 
+def _scan_and_fetch_job(cb):
+    scan_result = scan_library(MUSIC_DIR, progress_cb=cb)
+    fetch_result = process_missing(progress_cb=cb)
+    return {"scan": scan_result, "fetch": fetch_result}
+
+
 @app.post("/api/scan-and-fetch/start")
 def api_scan_and_fetch_start():
-    def combined(cb):
-        scan_result = scan_library(MUSIC_DIR, progress_cb=cb)
-        fetch_result = process_missing(progress_cb=cb)
-        return {"scan": scan_result, "fetch": fetch_result}
-
-    ok = _run_job("scan_and_fetch", combined)
+    ok = _run_job("scan_and_fetch", _scan_and_fetch_job)
     if not ok:
         raise HTTPException(status_code=409, detail="A job is already running")
     return {"started": True}
+
+
+@app.post("/api/webhook/lidarr")
+async def webhook_lidarr(request: Request, token: str = None):
+    """Point a Lidarr Connect webhook (On Import / On Upgrade) at this URL to
+    scan and fetch lyrics right after new tracks land, instead of waiting for
+    the schedule. If WEBHOOK_TOKEN is set, requests must include a matching
+    ?token= query param or X-Webhook-Token header.
+    """
+    if WEBHOOK_TOKEN:
+        provided = token or request.headers.get("X-Webhook-Token")
+        if provided != WEBHOOK_TOKEN:
+            raise HTTPException(status_code=401, detail="Invalid or missing webhook token")
+
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+
+    event_type = payload.get("eventType", "unknown")
+    logger.info(f"Lidarr webhook received (eventType={event_type})")
+
+    started = _run_job("scan_and_fetch", _scan_and_fetch_job)
+    return {"triggered": started, "event_type": event_type}
 
 
 @app.post("/api/verify/start")
@@ -321,6 +351,7 @@ def api_retry_track(track_id: int):
 class SettingsUpdate(BaseModel):
     scan_interval_hours: Optional[float] = None
     auto_scan_enabled: Optional[bool] = None
+    netease_fallback_enabled: Optional[bool] = None
 
 
 @app.get("/api/settings")
@@ -329,6 +360,8 @@ def api_get_settings():
         "music_dir": MUSIC_DIR,
         "scan_interval_hours": _effective_scan_interval(),
         "auto_scan_enabled": _auto_scan_enabled(),
+        "netease_fallback_enabled": _netease_fallback_enabled(),
+        "webhook_configured": bool(WEBHOOK_TOKEN),
     }
 
 
@@ -341,6 +374,11 @@ def api_update_settings(payload: SettingsUpdate):
 
     if payload.auto_scan_enabled is not None:
         set_setting("auto_scan_enabled", "true" if payload.auto_scan_enabled else "false")
+
+    if payload.netease_fallback_enabled is not None:
+        set_setting(
+            "netease_fallback_enabled", "true" if payload.netease_fallback_enabled else "false"
+        )
 
     _reschedule_auto_scan()
     return api_get_settings()

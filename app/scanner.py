@@ -37,14 +37,27 @@ def lrc_path_for(audio_path: str) -> str:
     return base + ".lrc"
 
 
-def scan_library(music_dir: str) -> dict:
+def _count_audio_files(music_dir: str) -> int:
+    count = 0
+    for _root, _dirs, files in os.walk(music_dir):
+        for fname in files:
+            if os.path.splitext(fname)[1].lower() in AUDIO_EXTENSIONS:
+                count += 1
+    return count
+
+
+def scan_library(music_dir: str, progress_cb=None) -> dict:
     """Walk the music directory, upsert tracks into the DB.
 
-    Returns summary counts.
+    Returns summary counts. If progress_cb is given, it's called as
+    progress_cb(current=path, processed=n, total=n) after each file, so
+    callers can surface real-time scan progress.
     """
     found = 0
     added = 0
     already_has_lrc = 0
+
+    total = _count_audio_files(music_dir) if progress_cb else 0
 
     with get_conn() as conn:
         for root, _dirs, files in os.walk(music_dir):
@@ -56,6 +69,9 @@ def scan_library(music_dir: str) -> dict:
                 full_path = os.path.join(root, fname)
                 lrc_path = lrc_path_for(full_path)
                 found += 1
+
+                if progress_cb:
+                    progress_cb(current=full_path, processed=found, total=total)
 
                 existing = conn.execute(
                     "SELECT id, status FROM tracks WHERE path = ?", (full_path,)

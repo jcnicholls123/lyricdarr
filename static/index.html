@@ -28,10 +28,12 @@
   header {
     display: flex;
     align-items: baseline;
+    justify-content: space-between;
     gap: 14px;
     padding: 28px 36px 20px;
     border-bottom: 1px solid var(--ink-line);
   }
+  .brand-group { display: flex; align-items: baseline; gap: 14px; }
   .brand {
     font-family: "Georgia", serif;
     font-size: 26px;
@@ -52,13 +54,28 @@
     font-size: 13px;
     font-family: "Courier New", monospace;
   }
+  .icon-btn {
+    background: transparent;
+    border: 1px solid var(--ink-line);
+    color: var(--text-dim);
+    width: 34px;
+    height: 34px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .icon-btn:hover { color: var(--gold); border-color: var(--gold-dim); }
+
   main { padding: 28px 36px 60px; max-width: 1100px; margin: 0 auto; }
 
   .stats-row {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 14px;
-    margin-bottom: 28px;
+    margin-bottom: 20px;
   }
   .stat-card {
     background: var(--ink-raised);
@@ -85,7 +102,7 @@
   .actions {
     display: flex;
     gap: 10px;
-    margin-bottom: 24px;
+    margin-bottom: 14px;
     flex-wrap: wrap;
     align-items: center;
   }
@@ -107,11 +124,64 @@
     border: 1px solid var(--ink-line);
     color: var(--text);
   }
-  #status-msg {
+
+  .progress-wrap {
+    margin-bottom: 24px;
+    min-height: 18px;
+  }
+  .progress-msg {
     color: var(--text-dim);
     font-size: 13px;
     font-family: "Courier New", monospace;
+    margin-bottom: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
+  .progress-msg.ok { color: var(--green); }
+  .progress-msg.err { color: var(--red); }
+  .progress-bar-track {
+    display: none;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--ink-line);
+    overflow: hidden;
+  }
+  .progress-bar-track.active { display: block; }
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--gold);
+    width: 0%;
+    transition: width 0.3s ease;
+  }
+  .progress-bar-fill.indeterminate {
+    width: 30% !important;
+    animation: indeterminate 1.2s ease-in-out infinite;
+  }
+  @keyframes indeterminate {
+    0% { margin-left: -30%; }
+    100% { margin-left: 100%; }
+  }
+
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--ink-line);
+  }
+  .tab {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+  }
+  .tab:hover { opacity: 1; color: var(--text); }
+  .tab.active { color: var(--gold); border-bottom-color: var(--gold); }
 
   .filters {
     display: flex;
@@ -119,7 +189,7 @@
     margin-bottom: 14px;
     align-items: center;
   }
-  select, input[type=text] {
+  select, input[type=text], input[type=number] {
     background: var(--ink-raised);
     border: 1px solid var(--ink-line);
     color: var(--text);
@@ -171,26 +241,149 @@
     padding: 60px 20px;
     color: var(--text-dim);
   }
+
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 18px;
+  }
+  .pagination button {
+    background: var(--ink-raised);
+    border: 1px solid var(--ink-line);
+    color: var(--text);
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .pagination button.active { background: var(--gold); color: #1a1508; border-color: var(--gold); }
+  .pagination button:disabled { opacity: 0.35; cursor: default; }
+  .pagination .page-info {
+    color: var(--text-dim);
+    font-size: 12px;
+    font-family: "Courier New", monospace;
+    margin: 0 8px;
+  }
+
+  /* Tree browser (artist / album grouping) */
+  .tree-list { display: flex; flex-direction: column; gap: 4px; }
+  .tree-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    background: var(--ink-raised);
+    border: 1px solid var(--ink-line);
+  }
+  .tree-row:hover { border-color: var(--gold-dim); }
+  .tree-row .chevron {
+    width: 12px;
+    color: var(--text-dim);
+    transition: transform 0.15s ease;
+    flex-shrink: 0;
+  }
+  .tree-row.expanded .chevron { transform: rotate(90deg); }
+  .tree-row .name { flex: 1; font-size: 14px; }
+  .tree-row .sub-name { color: var(--text-dim); font-size: 12px; margin-left: 6px; }
+  .tree-row .tick { font-weight: 700; font-size: 13px; flex-shrink: 0; }
+  .tree-row .tick.complete { color: var(--green); }
+  .tree-row .tick.partial { color: var(--text-dim); font-family: "Courier New", monospace; }
+  .tree-children {
+    display: none;
+    margin: 4px 0 4px 26px;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .tree-children.open { display: flex; }
+  .album-block { display: flex; flex-direction: column; gap: 3px; }
+  .track-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--ink-line);
+  }
+  .track-row .name { flex: 1; color: var(--text); }
+  .track-row .retry-btn { margin-left: auto; }
+
+  /* Settings modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--ink-raised);
+    border: 1px solid var(--ink-line);
+    border-radius: 8px;
+    padding: 24px;
+    width: 380px;
+    max-width: 90vw;
+  }
+  .modal h2 {
+    margin: 0 0 18px;
+    font-family: "Georgia", serif;
+    color: var(--gold);
+    font-size: 18px;
+  }
+  .field { margin-bottom: 16px; }
+  .field label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+  }
+  .field input[type=text], .field input[type=number] { width: 100%; }
+  .field.checkbox { display: flex; align-items: center; gap: 8px; }
+  .field.checkbox label { margin: 0; text-transform: none; font-size: 13px; color: var(--text); }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="brand"><span class="brand-mark"></span>Lyricdarr</div>
-  <div class="tagline">synced lyrics, fetched and filed — for your music library</div>
+  <div class="brand-group">
+    <div class="brand"><span class="brand-mark"></span>Lyricdarr</div>
+    <div class="tagline">synced lyrics, fetched and filed — for your music library</div>
+  </div>
+  <button class="icon-btn" onclick="openSettings()" title="Settings">&#9881;</button>
 </header>
 
 <main>
   <div class="stats-row" id="stats"></div>
 
   <div class="actions">
-    <button id="scan-btn" onclick="doScan()">Scan library</button>
-    <button id="fetch-btn" onclick="doFetch()">Download missing lyrics</button>
-    <span id="status-msg"></span>
+    <button id="scan-btn" onclick="startJob('/api/scan/start')">Scan library</button>
+    <button id="verify-btn" class="secondary" onclick="startJob('/api/verify/start')">Verify LRC files</button>
+    <button id="fetch-btn" onclick="startJob('/api/fetch/start')">Download missing lyrics</button>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-msg" id="progress-msg"></div>
+    <div class="progress-bar-track" id="progress-track">
+      <div class="progress-bar-fill" id="progress-fill"></div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-group="artist" onclick="setGroupBy('artist')">Artists</button>
+    <button class="tab" data-group="album" onclick="setGroupBy('album')">Albums</button>
+    <button class="tab" data-group="song" onclick="setGroupBy('song')">Songs</button>
   </div>
 
   <div class="filters">
-    <select id="status-filter" onchange="loadTracks()">
+    <select id="status-filter" onchange="onFilterChange()">
       <option value="">All statuses</option>
       <option value="pending">Pending</option>
       <option value="found">Found (synced)</option>
@@ -202,21 +395,53 @@
     <input type="text" id="search-box" placeholder="Search artist, title, album..." onkeyup="debouncedLoad()">
   </div>
 
-  <table>
-    <thead>
-      <tr><th>Artist</th><th>Title</th><th>Album</th><th>Status</th><th></th></tr>
-    </thead>
-    <tbody id="track-rows"></tbody>
-  </table>
+  <div id="library-container"></div>
   <div class="empty-state" id="empty-state" style="display:none">No tracks yet — click "Scan library" to get started.</div>
+  <div class="pagination" id="pagination" style="display:none"></div>
 </main>
+
+<div class="modal-overlay" id="settings-overlay">
+  <div class="modal">
+    <h2>Settings</h2>
+    <div class="field">
+      <label>Music directory (read-only, set via volume mount)</label>
+      <input type="text" id="settings-music-dir" disabled>
+    </div>
+    <div class="field">
+      <label>Auto-scan interval (hours)</label>
+      <input type="number" id="settings-interval" min="0.5" step="0.5">
+    </div>
+    <div class="field checkbox">
+      <input type="checkbox" id="settings-auto-scan">
+      <label for="settings-auto-scan">Enable automatic scan + fetch on a schedule</label>
+    </div>
+    <div class="modal-actions">
+      <button class="secondary" onclick="closeSettings()">Cancel</button>
+      <button onclick="saveSettings()">Save</button>
+    </div>
+  </div>
+</div>
 
 <script>
 let debounceTimer;
+let groupBy = 'artist';
+let currentPage = 1;
+const pageSize = 100;
+const expanded = new Set();
+let jobRunning = false;
+
 function debouncedLoad() {
   clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(loadTracks, 300);
+  debounceTimer = setTimeout(() => { currentPage = 1; loadLibrary(); }, 300);
 }
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : str;
+  return div.innerHTML;
+}
+
+// --- Stats ---
 
 async function loadStats() {
   const res = await fetch('/api/status');
@@ -237,76 +462,334 @@ async function loadStats() {
   `).join('');
 }
 
-async function loadTracks() {
+// --- Group-by tabs ---
+
+function setGroupBy(mode) {
+  groupBy = mode;
+  currentPage = 1;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.group === mode));
+  document.getElementById('status-filter').style.display = mode === 'song' ? '' : 'none';
+  loadLibrary();
+}
+
+function onFilterChange() {
+  currentPage = 1;
+  loadLibrary();
+}
+
+// --- Library loading ---
+
+async function loadLibrary() {
+  if (groupBy === 'song') {
+    await loadSongsPage();
+  } else {
+    await loadTree();
+  }
+}
+
+async function loadTree() {
+  const search = document.getElementById('search-box').value;
+  const params = new URLSearchParams({ group_by: groupBy });
+  if (search) params.set('search', search);
+  const res = await fetch('/api/library/tree?' + params.toString());
+  const data = await res.json();
+
+  document.getElementById('pagination').style.display = 'none';
+
+  const container = document.getElementById('library-container');
+  const emptyState = document.getElementById('empty-state');
+
+  if (groupBy === 'artist') {
+    if (!data.artists.length) { container.innerHTML = ''; emptyState.style.display = 'block'; return; }
+    emptyState.style.display = 'none';
+    container.innerHTML = `<div class="tree-list">${data.artists.map(renderArtist).join('')}</div>`;
+  } else {
+    if (!data.albums.length) { container.innerHTML = ''; emptyState.style.display = 'block'; return; }
+    emptyState.style.display = 'none';
+    container.innerHTML = `<div class="tree-list">${data.albums.map(renderAlbumFlat).join('')}</div>`;
+  }
+}
+
+function tickHtml(satisfied, total) {
+  if (satisfied === total) return `<span class="tick complete">&#10003;</span>`;
+  return `<span class="tick partial">${satisfied}/${total}</span>`;
+}
+
+function renderArtist(artist) {
+  const key = 'a:' + artist.name;
+  const isOpen = expanded.has(key);
+  return `
+    <div>
+      <div class="tree-row ${isOpen ? 'expanded' : ''}" onclick="toggleExpand('${escapeAttr(key)}')">
+        <span class="chevron">&#9656;</span>
+        <span class="name">${escapeHtml(artist.name)}<span class="sub-name">${artist.albums.length} album${artist.albums.length === 1 ? '' : 's'}</span></span>
+        ${tickHtml(artist.satisfied_count, artist.track_count)}
+      </div>
+      <div class="tree-children ${isOpen ? 'open' : ''}" id="children-${cssKey(key)}">
+        ${artist.albums.map(a => renderAlbumNested(a, artist.name)).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderAlbumNested(album, artistName) {
+  const key = 'al:' + artistName + '::' + album.name;
+  const isOpen = expanded.has(key);
+  return `
+    <div class="album-block">
+      <div class="tree-row ${isOpen ? 'expanded' : ''}" onclick="toggleExpand('${escapeAttr(key)}')">
+        <span class="chevron">&#9656;</span>
+        <span class="name">${escapeHtml(album.name)}</span>
+        ${tickHtml(album.satisfied_count, album.track_count)}
+      </div>
+      <div class="tree-children ${isOpen ? 'open' : ''}" id="children-${cssKey(key)}">
+        ${album.tracks.map(renderTrackRow).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderAlbumFlat(album) {
+  const key = 'alf:' + album.artist + '::' + album.name;
+  const isOpen = expanded.has(key);
+  return `
+    <div>
+      <div class="tree-row ${isOpen ? 'expanded' : ''}" onclick="toggleExpand('${escapeAttr(key)}')">
+        <span class="chevron">&#9656;</span>
+        <span class="name">${escapeHtml(album.name)}<span class="sub-name">${escapeHtml(album.artist)}</span></span>
+        ${tickHtml(album.satisfied_count, album.track_count)}
+      </div>
+      <div class="tree-children ${isOpen ? 'open' : ''}" id="children-${cssKey(key)}">
+        ${album.tracks.map(renderTrackRow).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderTrackRow(t) {
+  return `
+    <div class="track-row">
+      <span class="name">${escapeHtml(t.title)}</span>
+      <span class="badge ${t.status}">${t.status.replace('_', ' ')}</span>
+      ${t.status !== 'found' ? `<button class="retry-btn" onclick="retryTrack(${t.id}, event)">Retry</button>` : ''}
+    </div>
+  `;
+}
+
+function cssKey(key) { return key.replace(/[^a-zA-Z0-9]/g, '_'); }
+function escapeAttr(key) { return key.replace(/'/g, "\\'"); }
+
+function toggleExpand(key) {
+  if (expanded.has(key)) expanded.delete(key); else expanded.add(key);
+  loadTree();
+}
+
+// --- Songs (flat, paginated) ---
+
+async function loadSongsPage() {
   const status = document.getElementById('status-filter').value;
   const search = document.getElementById('search-box').value;
-  const params = new URLSearchParams();
+  const params = new URLSearchParams({ page: currentPage, page_size: pageSize });
   if (status) params.set('status', status);
   if (search) params.set('search', search);
   const res = await fetch('/api/tracks?' + params.toString());
-  const tracks = await res.json();
+  const data = await res.json();
 
-  const rows = document.getElementById('track-rows');
+  const container = document.getElementById('library-container');
   const emptyState = document.getElementById('empty-state');
 
-  if (tracks.length === 0) {
-    rows.innerHTML = '';
+  if (data.tracks.length === 0) {
+    container.innerHTML = '';
     emptyState.style.display = 'block';
+    document.getElementById('pagination').style.display = 'none';
     return;
   }
   emptyState.style.display = 'none';
 
-  rows.innerHTML = tracks.map(t => `
-    <tr>
-      <td>${escapeHtml(t.artist || '—')}</td>
-      <td>${escapeHtml(t.title || '—')}</td>
-      <td>${escapeHtml(t.album || '—')}</td>
-      <td><span class="badge ${t.status}">${t.status.replace('_', ' ')}</span></td>
-      <td>${t.status !== 'found' ? `<button class="retry-btn" onclick="retryTrack(${t.id})">Retry</button>` : ''}</td>
-    </tr>
-  `).join('');
+  container.innerHTML = `
+    <table>
+      <thead><tr><th>Artist</th><th>Title</th><th>Album</th><th>Status</th><th></th></tr></thead>
+      <tbody>${data.tracks.map(t => `
+        <tr>
+          <td>${escapeHtml(t.artist || '—')}</td>
+          <td>${escapeHtml(t.title || '—')}</td>
+          <td>${escapeHtml(t.album || '—')}</td>
+          <td><span class="badge ${t.status}">${t.status.replace('_', ' ')}</span></td>
+          <td>${t.status !== 'found' ? `<button class="retry-btn" onclick="retryTrack(${t.id}, event)">Retry</button>` : ''}</td>
+        </tr>
+      `).join('')}</tbody>
+    </table>
+  `;
+
+  renderPagination(data);
 }
 
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+function renderPagination(data) {
+  const el = document.getElementById('pagination');
+  if (data.total_pages <= 1) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+
+  const p = data.page;
+  const tp = data.total_pages;
+  let pages = new Set([1, tp, p - 1, p, p + 1]);
+  pages = [...pages].filter(n => n >= 1 && n <= tp).sort((a, b) => a - b);
+
+  let html = `<button ${p <= 1 ? 'disabled' : ''} onclick="goToPage(${p - 1})">&laquo; Prev</button>`;
+  let prevPage = 0;
+  for (const n of pages) {
+    if (prevPage && n - prevPage > 1) html += `<span class="page-info">…</span>`;
+    html += `<button class="${n === p ? 'active' : ''}" onclick="goToPage(${n})">${n}</button>`;
+    prevPage = n;
+  }
+  html += `<button ${p >= tp ? 'disabled' : ''} onclick="goToPage(${p + 1})">Next &raquo;</button>`;
+  html += `<span class="page-info">${data.total} tracks</span>`;
+  el.innerHTML = html;
 }
 
-async function retryTrack(id) {
+function goToPage(n) {
+  currentPage = n;
+  loadSongsPage();
+}
+
+async function retryTrack(id, evt) {
+  if (evt) evt.stopPropagation();
   await fetch(`/api/tracks/${id}/retry`, { method: 'POST' });
-  loadTracks();
+  loadLibrary();
   loadStats();
 }
 
-async function doScan() {
-  const btn = document.getElementById('scan-btn');
-  const msg = document.getElementById('status-msg');
-  btn.disabled = true;
-  msg.textContent = 'Scanning library...';
-  const res = await fetch('/api/scan', { method: 'POST' });
+// --- Background jobs + real-time progress (SSE) ---
+
+const PHASE_LABELS = {
+  scan: 'Scanning library',
+  fetch: 'Downloading missing lyrics',
+  scan_and_fetch: 'Scanning & downloading lyrics',
+  verify: 'Verifying LRC files on disk',
+};
+
+function setButtonsDisabled(disabled) {
+  ['scan-btn', 'verify-btn', 'fetch-btn'].forEach(id => {
+    document.getElementById(id).disabled = disabled;
+  });
+}
+
+async function startJob(url) {
+  const res = await fetch(url, { method: 'POST' });
+  if (res.status === 409) {
+    document.getElementById('progress-msg').textContent = 'A job is already running — please wait.';
+    return;
+  }
+}
+
+function summarize(phase, extra) {
+  if (!extra) return '';
+  if (phase === 'scan') {
+    return `Scan complete — ${extra.scanned_files} files scanned, ${extra.new_tracks} new tracks added.`;
+  }
+  if (phase === 'fetch') {
+    return `Done — found: ${(extra.found || 0) + (extra.found_unsynced || 0)}, not found: ${extra.not_found}, instrumental: ${extra.instrumental}, errors: ${extra.error}.`;
+  }
+  if (phase === 'scan_and_fetch') {
+    const f = extra.fetch || {};
+    return `Done — ${extra.scan.scanned_files} files scanned, ${extra.scan.new_tracks} new; found: ${(f.found || 0) + (f.found_unsynced || 0)}, not found: ${f.not_found}.`;
+  }
+  if (phase === 'verify') {
+    return `Verify complete — now found: ${extra.now_found}, now missing: ${extra.now_missing}, unchanged: ${extra.unchanged}.`;
+  }
+  return 'Done.';
+}
+
+let lastRunning = false;
+
+function applyProgress(state) {
+  const msg = document.getElementById('progress-msg');
+  const track = document.getElementById('progress-track');
+  const fill = document.getElementById('progress-fill');
+
+  jobRunning = state.running;
+  setButtonsDisabled(state.running);
+
+  if (state.running) {
+    track.classList.add('active');
+    const label = PHASE_LABELS[state.phase] || state.phase;
+    if (state.total > 0) {
+      const pct = Math.min(100, Math.round((state.processed / state.total) * 100));
+      fill.classList.remove('indeterminate');
+      fill.style.width = pct + '%';
+      msg.textContent = `${label}… ${state.processed}/${state.total}${state.current ? ' — ' + state.current : ''}`;
+    } else {
+      fill.classList.add('indeterminate');
+      msg.textContent = `${label}…${state.current ? ' — ' + state.current : ''}`;
+    }
+    msg.className = 'progress-msg';
+  } else {
+    track.classList.remove('active');
+    fill.classList.remove('indeterminate');
+    fill.style.width = '0%';
+    if (state.error) {
+      msg.textContent = `Error: ${state.error}`;
+      msg.className = 'progress-msg err';
+    } else if (state.extra && Object.keys(state.extra).length) {
+      msg.textContent = summarize(state.phase, state.extra);
+      msg.className = 'progress-msg ok';
+    } else {
+      msg.textContent = '';
+      msg.className = 'progress-msg';
+    }
+  }
+
+  // A job just finished — refresh the view.
+  if (lastRunning && !state.running) {
+    loadStats();
+    loadLibrary();
+  }
+  lastRunning = state.running;
+}
+
+function connectProgressStream() {
+  const es = new EventSource('/api/progress/stream');
+  es.onmessage = (evt) => applyProgress(JSON.parse(evt.data));
+  es.onerror = () => {
+    // Browser auto-reconnects EventSource; nothing else to do here.
+  };
+}
+
+// --- Settings ---
+
+async function openSettings() {
+  const res = await fetch('/api/settings');
   const data = await res.json();
-  msg.textContent = `Scan complete — ${data.scanned_files} files scanned, ${data.new_tracks} new tracks added.`;
-  btn.disabled = false;
-  loadStats();
-  loadTracks();
+  document.getElementById('settings-music-dir').value = data.music_dir;
+  document.getElementById('settings-interval').value = data.scan_interval_hours;
+  document.getElementById('settings-auto-scan').checked = data.auto_scan_enabled;
+  document.getElementById('settings-overlay').classList.add('open');
 }
 
-async function doFetch() {
-  const btn = document.getElementById('fetch-btn');
-  const msg = document.getElementById('status-msg');
-  btn.disabled = true;
-  msg.textContent = 'Fetching lyrics from LRCLIB — this may take a while for large libraries...';
-  const res = await fetch('/api/fetch', { method: 'POST' });
-  const data = await res.json();
-  msg.textContent = `Done — found: ${data.found + (data.found_unsynced||0)}, not found: ${data.not_found}, instrumental: ${data.instrumental}, errors: ${data.error}.`;
-  btn.disabled = false;
-  loadStats();
-  loadTracks();
+function closeSettings() {
+  document.getElementById('settings-overlay').classList.remove('open');
 }
 
+async function saveSettings() {
+  const interval = parseFloat(document.getElementById('settings-interval').value);
+  const autoScan = document.getElementById('settings-auto-scan').checked;
+  await fetch('/api/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ scan_interval_hours: interval, auto_scan_enabled: autoScan }),
+  });
+  closeSettings();
+}
+
+document.getElementById('settings-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'settings-overlay') closeSettings();
+});
+
+// --- Init ---
+
+document.getElementById('status-filter').style.display = 'none';
 loadStats();
-loadTracks();
+loadLibrary();
+connectProgressStream();
 setInterval(loadStats, 15000);
 </script>
 

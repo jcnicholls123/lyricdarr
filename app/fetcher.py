@@ -1,4 +1,5 @@
 import logging
+import os
 from datetime import datetime, timezone
 
 from app.db import get_conn
@@ -63,10 +64,12 @@ def _record_error(track_id: int, error: str):
         conn.commit()
 
 
-def process_missing(limit: int = None) -> dict:
+def process_missing(limit: int = None, progress_cb=None) -> dict:
     """Process all tracks not currently marked 'found'/'found_unsynced'/'instrumental'.
 
     Skips tracks whose .lrc already exists on disk (status will be corrected by scan).
+    If progress_cb is given, it's called as progress_cb(current=label, processed=n, total=n)
+    before each track is fetched, so callers can surface real-time progress.
     """
     summary = {"found": 0, "found_unsynced": 0, "not_found": 0, "instrumental": 0, "error": 0}
 
@@ -78,7 +81,12 @@ def process_missing(limit: int = None) -> dict:
             query += f" LIMIT {int(limit)}"
         rows = conn.execute(query).fetchall()
 
-    for row in rows:
+    total = len(rows)
+    for i, row in enumerate(rows, start=1):
+        if progress_cb:
+            label = f'{row["artist"] or "Unknown Artist"} - {row["title"]}'
+            progress_cb(current=label, processed=i - 1, total=total)
+
         status = fetch_one(row)
         summary[status] = summary.get(status, 0) + 1
         with get_conn() as conn:
@@ -87,6 +95,55 @@ def process_missing(limit: int = None) -> dict:
                 (status, _now(), row["id"]),
             )
             conn.commit()
+
+    if progress_cb:
+        progress_cb(current=None, processed=total, total=total)
+
+    return summary
+
+
+def verify_tracks(progress_cb=None) -> dict:
+    """Re-check on-disk presence of each tracked .lrc file without walking the
+    filesystem for new tracks (that's what scan_library is for).
+
+    Corrects status when a file was added or removed outside the app (e.g. a
+    lyric was manually placed, or deleted). If progress_cb is given, it's
+    called as progress_cb(current=label, processed=n, total=n) per track.
+    """
+    summary = {"now_found": 0, "now_missing": 0, "unchanged": 0}
+
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM tracks").fetchall()
+
+    total = len(rows)
+    for i, row in enumerate(rows, start=1):
+        if progress_cb:
+            label = f'{row["artist"] or "Unknown Artist"} - {row["title"]}'
+            progress_cb(current=label, processed=i - 1, total=total)
+
+        has_lrc = os.path.exists(row["lrc_path"])
+        old_status = row["status"]
+
+        if has_lrc and old_status not in ("found", "found_unsynced"):
+            new_status = "found"
+            summary["now_found"] += 1
+        elif not has_lrc and old_status in ("found", "found_unsynced"):
+            new_status = "pending"
+            summary["now_missing"] += 1
+        else:
+            new_status = old_status
+            summary["unchanged"] += 1
+
+        if new_status != old_status:
+            with get_conn() as conn:
+                conn.execute(
+                    "UPDATE tracks SET status = ?, last_checked = ? WHERE id = ?",
+                    (new_status, _now(), row["id"]),
+                )
+                conn.commit()
+
+    if progress_cb:
+        progress_cb(current=None, processed=total, total=total)
 
     return summary
 

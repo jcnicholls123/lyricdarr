@@ -16,7 +16,10 @@ triggers, etc).
 - Queries LRCLIB for an exact match, falls back to fuzzy search
 - Saves synced `.lrc` lyrics matching the track's filename
 - Tracks status per-track in a small SQLite DB (pending / found / not found / instrumental / error)
-- Web dashboard to see stats, filter/search tracks, retry individual failures
+- Web dashboard with real-time scan/fetch progress, browsable by Artist / Album / Song
+  with a completion tick at each level, search, pagination, and per-track retry
+- "Verify" action to re-check which `.lrc` files are actually on disk without a full rescan
+- In-app settings panel to change the auto-scan interval or turn it off, no restart needed
 - Auto re-scans and re-fetches on a schedule (default every 6 hours), like Bazarr's automatic search
 
 ## Getting this onto GitHub (one-time setup)
@@ -97,11 +100,23 @@ Since it's FastAPI under the hood, you get a free interactive API explorer at
 right after Lidarr imports something, via a webhook/custom script).
 
 Key endpoints:
-- `POST /api/scan` — rescan the library for new files
-- `POST /api/fetch` — attempt to fetch lyrics for anything not yet found
-- `POST /api/scan-and-fetch` — do both in one call
-- `GET /api/tracks?status=not_found` — list tracks by status
+- `POST /api/scan` — rescan the library for new files (blocking, returns a summary)
+- `POST /api/fetch` — attempt to fetch lyrics for anything not yet found (blocking)
+- `POST /api/scan-and-fetch` — do both in one call (blocking)
+- `POST /api/verify/start` — re-check existing tracks' `.lrc` files on disk without a
+  full rescan (picks up manually added/removed lyrics)
+- `POST /api/scan/start`, `POST /api/fetch/start`, `POST /api/scan-and-fetch/start` —
+  same as above but run in the background; returns immediately with `{"started": true}`
+  (409 if a job is already running). Pair with `/api/progress` or the SSE stream below
+  for live status — this is what the dashboard UI uses.
+- `GET /api/progress` — current background job status (phase, running, processed/total, current item)
+- `GET /api/progress/stream` — Server-Sent Events stream of the same, pushed in real time
+- `GET /api/tracks?status=not_found&page=1&page_size=100` — paginated track list
+- `GET /api/library/tree?group_by=artist|album|song&search=` — library grouped for
+  browsing, with a completion tally at each level
 - `POST /api/tracks/{id}/retry` — retry a single track
+- `GET /api/settings` / `POST /api/settings` — read or update `scan_interval_hours`
+  and `auto_scan_enabled` (persisted, reschedules the background job immediately)
 
 ## Notes / limitations (things to extend if you want to go further)
 

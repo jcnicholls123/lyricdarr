@@ -6,18 +6,24 @@
 <title>Lyricdarr</title>
 <style>
   :root {
-    --ink: #14171f;
-    --ink-raised: #1b1f2a;
-    --ink-line: #2a2f3d;
-    --gold: #d4a24c;
-    --gold-dim: #8a6d3a;
-    --text: #e8e6df;
-    --text-dim: #9299ab;
+    /* Warm, analog "tape deck" palette — vinyl-sleeve brown-black, paper-cream
+       text, and a single signal-red accent standing in for a VU meter's peak
+       light. Chosen over a cooler dark-navy/gold scheme to feel like hardware
+       for handling physical media, not a generic admin theme. */
+    --ink: #17130f;
+    --ink-raised: #221c15;
+    --ink-line: #3a2f22;
+    --gold: #e2542d;
+    --gold-dim: #8f3b22;
+    --text: #f2e8d5;
+    --text-dim: #9c8d78;
     --green: #6fae7a;
-    --red: #c1665f;
-    --blue: #6d94c9;
+    --red: #c2665a;
+    --blue: #7c93ab;
+    --mono: Consolas, "Cascadia Code", "SFMono-Regular", Menlo, "Liberation Mono", monospace;
   }
   * { box-sizing: border-box; }
+  :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
   body {
     margin: 0;
     background: var(--ink);
@@ -35,25 +41,29 @@
   }
   .brand-group { display: flex; align-items: baseline; gap: 14px; }
   .brand {
-    font-family: "Georgia", serif;
-    font-size: 26px;
-    letter-spacing: 0.02em;
-    color: var(--gold);
+    font-family: Georgia, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--text);
   }
+  .brand-accent { color: var(--gold); }
   .brand-mark {
     display: inline-block;
     width: 10px;
     height: 10px;
     background: var(--gold);
-    border-radius: 2px;
+    border-radius: 50%;
     margin-right: 10px;
-    transform: rotate(45deg);
+    box-shadow: 0 0 6px 1px rgba(226, 84, 45, 0.55);
+    animation: breathe 3s ease-in-out infinite;
   }
   .tagline {
     color: var(--text-dim);
-    font-size: 13px;
-    font-family: "Courier New", monospace;
+    font-size: 12px;
+    font-family: var(--mono);
   }
+  .tagline .tag-key { color: var(--gold); margin-right: 6px; }
   .icon-btn {
     background: transparent;
     border: 1px solid var(--ink-line);
@@ -71,33 +81,32 @@
 
   main { padding: 28px 36px 60px; max-width: 1100px; margin: 0 auto; }
 
-  .stats-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 14px;
-    margin-bottom: 20px;
-  }
-  .stat-card {
+  /* The library rendered as if it were one big .lrc file's tag header —
+     the signature element: real LRC files open with bracket metadata tags
+     ([ar:], [ti:], [length:]) before the timed lyric lines, so the stats
+     block borrows that exact syntax instead of a generic stat-card grid. */
+  .tagblock {
     background: var(--ink-raised);
     border: 1px solid var(--ink-line);
     border-radius: 6px;
-    padding: 16px 18px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    font-family: var(--mono);
   }
-  .stat-num {
-    font-family: "Courier New", monospace;
-    font-size: 28px;
-    font-weight: 700;
-  }
-  .stat-label {
-    font-size: 12px;
+  .tagblock-head {
     color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-top: 4px;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    margin-bottom: 14px;
   }
-  .stat-card.found .stat-num { color: var(--green); }
-  .stat-card.missing .stat-num { color: var(--red); }
-  .stat-card.total .stat-num { color: var(--gold); }
+  .tagblock-head .cursor { color: var(--gold); margin-left: 2px; animation: blink 1s steps(1) infinite; }
+  .tagblock-row { display: flex; flex-wrap: wrap; gap: 20px 32px; }
+  .tk { display: flex; align-items: baseline; gap: 8px; }
+  .tk-key { font-size: 12px; color: var(--text-dim); }
+  .tk-val { font-size: 22px; font-weight: 700; color: var(--text); }
+  .tk.found .tk-val { color: var(--green); }
+  .tk.missing .tk-val { color: var(--gold); }
+  .tk.inst .tk-val { color: var(--text-dim); }
 
   .actions {
     display: flex;
@@ -107,23 +116,31 @@
     align-items: center;
   }
   button {
-    background: var(--gold);
+    background: linear-gradient(180deg, var(--gold) 0%, var(--gold-dim) 100%);
     color: #1a1508;
-    border: none;
+    border: 1px solid rgba(0, 0, 0, 0.35);
     padding: 10px 18px;
-    border-radius: 5px;
+    border-radius: 4px;
     font-weight: 600;
     cursor: pointer;
     font-size: 13px;
-    transition: opacity 0.15s ease;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 1px 2px rgba(0, 0, 0, 0.35);
+    transition: opacity 0.15s ease, transform 0.08s ease, box-shadow 0.08s ease;
   }
-  button:hover { opacity: 0.85; }
+  button:hover { opacity: 0.9; }
+  button:active { transform: translateY(1px); box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.4); }
   button:disabled { opacity: 0.4; cursor: wait; }
   button.secondary {
-    background: transparent;
+    background: var(--ink-raised);
     border: 1px solid var(--ink-line);
     color: var(--text);
+    box-shadow: none;
   }
+  button.secondary:active { box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.3); }
+  #scan-btn::before { content: '\21BB\A0'; }
+  #verify-btn::before { content: '\2713\A0'; }
+  #fetch-btn::before { content: '\2193\A0'; }
+  .retry-btn::before { content: '\21BB\A0'; }
 
   .progress-wrap {
     margin-bottom: 24px;
@@ -132,7 +149,7 @@
   .progress-msg {
     color: var(--text-dim);
     font-size: 13px;
-    font-family: "Courier New", monospace;
+    font-family: var(--mono);
     margin-bottom: 6px;
     white-space: nowrap;
     overflow: hidden;
@@ -140,17 +157,26 @@
   }
   .progress-msg.ok { color: var(--green); }
   .progress-msg.err { color: var(--red); }
+  .progress-msg.running::after {
+    content: '\2595';
+    margin-left: 4px;
+    color: var(--gold);
+    animation: blink 1s steps(1) infinite;
+  }
+  /* Tape-counter styling: a row of ticks rather than a smooth gradient bar. */
   .progress-bar-track {
     display: none;
-    height: 6px;
-    border-radius: 3px;
-    background: var(--ink-line);
+    height: 8px;
+    border-radius: 2px;
+    background-color: var(--ink-line);
+    background-image: repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.35) 0 2px, transparent 2px 6px);
     overflow: hidden;
   }
   .progress-bar-track.active { display: block; }
   .progress-bar-fill {
     height: 100%;
-    background: var(--gold);
+    background-color: var(--gold);
+    background-image: repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.25) 0 2px, transparent 2px 6px);
     width: 0%;
     transition: width 0.3s ease;
   }
@@ -162,32 +188,45 @@
     0% { margin-left: -30%; }
     100% { margin-left: 100%; }
   }
+  @keyframes blink { 50% { opacity: 0; } }
+  @keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
+  /* Styled like buttons on a mixing console rather than underlined web tabs —
+     the active view sits flush and inset, like it's been pressed in. */
   .tabs {
     display: flex;
-    gap: 4px;
+    gap: 6px;
     margin-bottom: 14px;
     border-bottom: 1px solid var(--ink-line);
   }
   .tab {
-    background: transparent;
-    border: none;
+    background: var(--ink-raised);
+    border: 1px solid var(--ink-line);
+    border-bottom: none;
     color: var(--text-dim);
-    padding: 8px 14px;
-    font-size: 13px;
-    font-weight: 600;
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
     cursor: pointer;
-    border-bottom: 2px solid transparent;
-    border-radius: 0;
+    border-radius: 4px 4px 0 0;
+    transform: translateY(1px);
   }
-  .tab:hover { opacity: 1; color: var(--text); }
-  .tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+  .tab:hover { color: var(--text); }
+  .tab.active {
+    color: var(--gold);
+    background: var(--ink);
+    box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.35);
+    transform: translateY(0);
+  }
 
   .filters {
     display: flex;
     gap: 10px;
     margin-bottom: 14px;
     align-items: center;
+    flex-wrap: wrap;
   }
   select, input[type=text], input[type=number] {
     background: var(--ink-raised);
@@ -197,8 +236,9 @@
     border-radius: 5px;
     font-size: 13px;
   }
-  input[type=text] { flex: 1; }
+  input[type=text] { flex: 1; min-width: 200px; }
 
+  .table-scroll { overflow-x: auto; }
   table {
     width: 100%;
     border-collapse: collapse;
@@ -212,23 +252,29 @@
     font-size: 11px;
     letter-spacing: 0.05em;
     border-bottom: 1px solid var(--ink-line);
+    white-space: nowrap;
   }
   td {
     padding: 10px 12px;
     border-bottom: 1px solid var(--ink-line);
   }
   tr:hover td { background: var(--ink-raised); }
+  /* A status badge rendered as a literal bracket tag — [found], [pending] — the
+     same syntax as the real metadata tags an .lrc file carries, rather than a
+     generic colored pill. */
   .badge {
     display: inline-block;
-    padding: 3px 9px;
-    border-radius: 10px;
+    font-family: var(--mono);
     font-size: 11px;
     font-weight: 600;
+    letter-spacing: 0.02em;
   }
-  .badge.found, .badge.found_unsynced { background: rgba(111,174,122,0.15); color: var(--green); }
-  .badge.pending { background: rgba(109,148,201,0.15); color: var(--blue); }
-  .badge.not_found, .badge.error { background: rgba(193,102,95,0.15); color: var(--red); }
-  .badge.instrumental { background: rgba(154,154,154,0.15); color: var(--text-dim); }
+  .badge::before { content: '['; }
+  .badge::after { content: ']'; }
+  .badge.found, .badge.found_unsynced { color: var(--green); }
+  .badge.pending { color: var(--blue); }
+  .badge.not_found, .badge.error { color: var(--red); }
+  .badge.instrumental { color: var(--text-dim); }
   .retry-btn {
     background: none;
     border: 1px solid var(--ink-line);
@@ -240,11 +286,11 @@
     background: none;
     border: 1px solid var(--ink-line);
     color: var(--text-dim);
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     line-height: 1;
     padding: 0;
-    font-size: 14px;
+    font-size: 17px;
     border-radius: 4px;
     flex-shrink: 0;
   }
@@ -275,7 +321,7 @@
   .pagination .page-info {
     color: var(--text-dim);
     font-size: 12px;
-    font-family: "Courier New", monospace;
+    font-family: var(--mono);
     margin: 0 8px;
   }
 
@@ -292,6 +338,7 @@
     border: 1px solid var(--ink-line);
   }
   .tree-row:hover { border-color: var(--gold-dim); }
+  .tree-row.expanded { box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3); }
   .tree-row .chevron {
     width: 12px;
     color: var(--text-dim);
@@ -303,7 +350,7 @@
   .tree-row .sub-name { color: var(--text-dim); font-size: 12px; margin-left: 6px; }
   .tree-row .tick { font-weight: 700; font-size: 13px; flex-shrink: 0; }
   .tree-row .tick.complete { color: var(--green); }
-  .tree-row .tick.partial { color: var(--text-dim); font-family: "Courier New", monospace; }
+  .tree-row .tick.partial { color: var(--text-dim); font-family: var(--mono); }
   .tree-children {
     display: none;
     margin: 4px 0 4px 26px;
@@ -344,9 +391,10 @@
   }
   .modal h2 {
     margin: 0 0 18px;
-    font-family: "Georgia", serif;
+    font-family: var(--mono);
     color: var(--gold);
-    font-size: 18px;
+    font-size: 16px;
+    letter-spacing: 0.03em;
   }
   .field { margin-bottom: 16px; }
   .field label {
@@ -358,23 +406,57 @@
     margin-bottom: 6px;
   }
   .field input[type=text], .field input[type=number] { width: 100%; }
-  .field.checkbox { display: flex; align-items: center; gap: 8px; }
+  .field.checkbox { display: flex; align-items: center; gap: 10px; }
   .field.checkbox label { margin: 0; text-transform: none; font-size: 13px; color: var(--text); }
+  /* A physical-looking toggle switch instead of a native checkbox — fits the
+     hardware-panel language used for the rest of the settings dialog. */
+  .field.checkbox input[type=checkbox] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 38px;
+    height: 22px;
+    flex-shrink: 0;
+    background: var(--ink-line);
+    border: 1px solid rgba(0, 0, 0, 0.35);
+    border-radius: 11px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .field.checkbox input[type=checkbox]::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .field.checkbox input[type=checkbox]:checked { background: var(--green); }
+  .field.checkbox input[type=checkbox]:checked::after { transform: translateX(16px); background: var(--ink); }
   .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .brand-mark, .tagblock-head .cursor, .progress-msg.running::after, .progress-bar-fill.indeterminate {
+      animation: none !important;
+    }
+  }
 </style>
 </head>
 <body>
 
 <header>
   <div class="brand-group">
-    <div class="brand"><span class="brand-mark"></span>Lyricdarr</div>
-    <div class="tagline">synced lyrics, fetched and filed — for your music library</div>
+    <div class="brand"><span class="brand-mark"></span>Lyric<span class="brand-accent">darr</span></div>
+    <div class="tagline"><span class="tag-key">[about]</span>synced lyrics, found and filed for your library</div>
   </div>
   <button class="icon-btn" onclick="openSettings()" title="Settings">&#9881;</button>
 </header>
 
 <main>
-  <div class="stats-row" id="stats"></div>
+  <div class="tagblock" id="stats"></div>
 
   <div class="actions">
     <button id="scan-btn" onclick="startJob('/api/scan/start')" title="Rescans your music folder: adds new tracks and removes any whose file has been deleted">Refresh library</button>
@@ -409,13 +491,13 @@
   </div>
 
   <div id="library-container"></div>
-  <div class="empty-state" id="empty-state" style="display:none">No tracks yet — click "Scan library" to get started.</div>
+  <div class="empty-state" id="empty-state" style="display:none">Nothing scanned yet — click "Refresh library" to find your tracks.</div>
   <div class="pagination" id="pagination" style="display:none"></div>
 </main>
 
 <div class="modal-overlay" id="settings-overlay">
   <div class="modal">
-    <h2>Settings</h2>
+    <h2>[settings]</h2>
     <div class="field">
       <label>Music directory (read-only, set via volume mount)</label>
       <input type="text" id="settings-music-dir" disabled>
@@ -466,18 +548,17 @@ async function loadStats() {
   const data = await res.json();
   const found = (data.by_status.found || 0) + (data.by_status.found_unsynced || 0);
   const missing = data.total_tracks - found - (data.by_status.instrumental || 0);
-  const stats = [
-    { label: 'Total tracks', value: data.total_tracks, cls: 'total' },
-    { label: 'Lyrics found', value: found, cls: 'found' },
-    { label: 'Missing', value: missing, cls: 'missing' },
-    { label: 'Instrumental', value: data.by_status.instrumental || 0, cls: '' },
-  ];
-  document.getElementById('stats').innerHTML = stats.map(s => `
-    <div class="stat-card ${s.cls}">
-      <div class="stat-num">${s.value}</div>
-      <div class="stat-label">${s.label}</div>
+  const instrumental = data.by_status.instrumental || 0;
+  const fmt = n => n.toLocaleString();
+  document.getElementById('stats').innerHTML = `
+    <div class="tagblock-head">[library.lrc]<span class="cursor">&#9615;</span></div>
+    <div class="tagblock-row">
+      <span class="tk total"><span class="tk-key">[total]</span> <span class="tk-val">${fmt(data.total_tracks)}</span></span>
+      <span class="tk found"><span class="tk-key">[found]</span> <span class="tk-val">${fmt(found)}</span></span>
+      <span class="tk missing"><span class="tk-key">[missing]</span> <span class="tk-val">${fmt(missing)}</span></span>
+      <span class="tk inst"><span class="tk-key">[instrumental]</span> <span class="tk-val">${fmt(instrumental)}</span></span>
     </div>
-  `).join('');
+  `;
 }
 
 // --- Group-by tabs ---
@@ -542,7 +623,7 @@ function renderArtist(artist) {
         <span class="chevron">&#9656;</span>
         <span class="name">${escapeHtml(artist.name)}<span class="sub-name">${artist.albums.length} album${artist.albums.length === 1 ? '' : 's'}</span></span>
         ${tickHtml(artist.satisfied_count, artist.track_count)}
-        <button class="delete-btn" onclick="deleteArtist('${escapeAttr(artist.name)}', event)" title="Remove this artist from Lyricdarr">&times;</button>
+        <button class="delete-btn" onclick="deleteArtist('${escapeAttr(artist.name)}', event)" title="Remove this artist from Lyricdarr">&#9167;</button>
       </div>
       <div class="tree-children ${isOpen ? 'open' : ''}" id="children-${cssKey(key)}">
         ${artist.albums.map(a => renderAlbumNested(a, artist.name)).join('')}
@@ -560,7 +641,7 @@ function renderAlbumNested(album, artistName) {
         <span class="chevron">&#9656;</span>
         <span class="name">${escapeHtml(album.name)}</span>
         ${tickHtml(album.satisfied_count, album.track_count)}
-        <button class="delete-btn" onclick="deleteAlbum('${escapeAttr(artistName)}', '${escapeAttr(album.name)}', event)" title="Remove this album from Lyricdarr">&times;</button>
+        <button class="delete-btn" onclick="deleteAlbum('${escapeAttr(artistName)}', '${escapeAttr(album.name)}', event)" title="Remove this album from Lyricdarr">&#9167;</button>
       </div>
       <div class="tree-children ${isOpen ? 'open' : ''}" id="children-${cssKey(key)}">
         ${album.tracks.map(renderTrackRow).join('')}
@@ -578,7 +659,7 @@ function renderAlbumFlat(album) {
         <span class="chevron">&#9656;</span>
         <span class="name">${escapeHtml(album.name)}<span class="sub-name">${escapeHtml(album.artist)}</span></span>
         ${tickHtml(album.satisfied_count, album.track_count)}
-        <button class="delete-btn" onclick="deleteAlbum('${escapeAttr(album.artist)}', '${escapeAttr(album.name)}', event)" title="Remove this album from Lyricdarr">&times;</button>
+        <button class="delete-btn" onclick="deleteAlbum('${escapeAttr(album.artist)}', '${escapeAttr(album.name)}', event)" title="Remove this album from Lyricdarr">&#9167;</button>
       </div>
       <div class="tree-children ${isOpen ? 'open' : ''}" id="children-${cssKey(key)}">
         ${album.tracks.map(renderTrackRow).join('')}
@@ -593,7 +674,7 @@ function renderTrackRow(t) {
       <span class="name">${escapeHtml(t.title)}</span>
       <span class="badge ${t.status}">${t.status.replace('_', ' ')}</span>
       ${t.status !== 'found' ? `<button class="retry-btn" onclick="retryTrack(${t.id}, event)">Retry</button>` : ''}
-      <button class="delete-btn" onclick="deleteTrack(${t.id}, event)" title="Remove this track from Lyricdarr">&times;</button>
+      <button class="delete-btn" onclick="deleteTrack(${t.id}, event)" title="Remove this track from Lyricdarr">&#9167;</button>
     </div>
   `;
 }
@@ -644,21 +725,23 @@ async function loadSongsPage() {
   emptyState.style.display = 'none';
 
   container.innerHTML = `
-    <table>
-      <thead><tr><th>Artist</th><th>Title</th><th>Album</th><th>Status</th><th></th></tr></thead>
-      <tbody>${data.tracks.map(t => `
-        <tr>
-          <td>${escapeHtml(t.artist || '—')}</td>
-          <td>${escapeHtml(t.title || '—')}</td>
-          <td>${escapeHtml(t.album || '—')}</td>
-          <td><span class="badge ${t.status}">${t.status.replace('_', ' ')}</span></td>
-          <td style="display:flex;gap:6px;justify-content:flex-end">
-            ${t.status !== 'found' ? `<button class="retry-btn" onclick="retryTrack(${t.id}, event)">Retry</button>` : ''}
-            <button class="delete-btn" onclick="deleteTrack(${t.id}, event)" title="Remove this track from Lyricdarr">&times;</button>
-          </td>
-        </tr>
-      `).join('')}</tbody>
-    </table>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Artist</th><th>Title</th><th>Album</th><th>Status</th><th></th></tr></thead>
+        <tbody>${data.tracks.map(t => `
+          <tr>
+            <td>${escapeHtml(t.artist || '—')}</td>
+            <td>${escapeHtml(t.title || '—')}</td>
+            <td>${escapeHtml(t.album || '—')}</td>
+            <td><span class="badge ${t.status}">${t.status.replace('_', ' ')}</span></td>
+            <td style="display:flex;gap:6px;justify-content:flex-end">
+              ${t.status !== 'found' ? `<button class="retry-btn" onclick="retryTrack(${t.id}, event)">Retry</button>` : ''}
+              <button class="delete-btn" onclick="deleteTrack(${t.id}, event)" title="Remove this track from Lyricdarr">&#9167;</button>
+            </td>
+          </tr>
+        `).join('')}</tbody>
+      </table>
+    </div>
   `;
 
   renderPagination(data);
@@ -790,7 +873,7 @@ function applyProgress(state) {
       fill.classList.add('indeterminate');
       msg.textContent = `${label}…${state.current ? ' — ' + state.current : ''}`;
     }
-    msg.className = 'progress-msg';
+    msg.className = 'progress-msg running';
   } else {
     track.classList.remove('active');
     fill.classList.remove('indeterminate');

@@ -236,6 +236,19 @@
     padding: 4px 10px;
     font-size: 11px;
   }
+  .delete-btn {
+    background: none;
+    border: 1px solid var(--ink-line);
+    color: var(--text-dim);
+    width: 22px;
+    height: 22px;
+    line-height: 1;
+    padding: 0;
+    font-size: 14px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .delete-btn:hover { color: var(--red); border-color: var(--red); opacity: 1; }
   .empty-state {
     text-align: center;
     padding: 60px 20px;
@@ -364,7 +377,7 @@
   <div class="stats-row" id="stats"></div>
 
   <div class="actions">
-    <button id="scan-btn" onclick="startJob('/api/scan/start')">Scan library</button>
+    <button id="scan-btn" onclick="startJob('/api/scan/start')" title="Rescans your music folder: adds new tracks and removes any whose file has been deleted">Refresh library</button>
     <button id="verify-btn" class="secondary" onclick="startJob('/api/verify/start')">Verify LRC files</button>
     <button id="fetch-btn" onclick="startJob('/api/fetch/start')">Download missing lyrics</button>
   </div>
@@ -529,6 +542,7 @@ function renderArtist(artist) {
         <span class="chevron">&#9656;</span>
         <span class="name">${escapeHtml(artist.name)}<span class="sub-name">${artist.albums.length} album${artist.albums.length === 1 ? '' : 's'}</span></span>
         ${tickHtml(artist.satisfied_count, artist.track_count)}
+        <button class="delete-btn" onclick="deleteArtist('${escapeAttr(artist.name)}', event)" title="Remove this artist from Lyricdarr">&times;</button>
       </div>
       <div class="tree-children ${isOpen ? 'open' : ''}" id="children-${cssKey(key)}">
         ${artist.albums.map(a => renderAlbumNested(a, artist.name)).join('')}
@@ -546,6 +560,7 @@ function renderAlbumNested(album, artistName) {
         <span class="chevron">&#9656;</span>
         <span class="name">${escapeHtml(album.name)}</span>
         ${tickHtml(album.satisfied_count, album.track_count)}
+        <button class="delete-btn" onclick="deleteAlbum('${escapeAttr(artistName)}', '${escapeAttr(album.name)}', event)" title="Remove this album from Lyricdarr">&times;</button>
       </div>
       <div class="tree-children ${isOpen ? 'open' : ''}" id="children-${cssKey(key)}">
         ${album.tracks.map(renderTrackRow).join('')}
@@ -563,6 +578,7 @@ function renderAlbumFlat(album) {
         <span class="chevron">&#9656;</span>
         <span class="name">${escapeHtml(album.name)}<span class="sub-name">${escapeHtml(album.artist)}</span></span>
         ${tickHtml(album.satisfied_count, album.track_count)}
+        <button class="delete-btn" onclick="deleteAlbum('${escapeAttr(album.artist)}', '${escapeAttr(album.name)}', event)" title="Remove this album from Lyricdarr">&times;</button>
       </div>
       <div class="tree-children ${isOpen ? 'open' : ''}" id="children-${cssKey(key)}">
         ${album.tracks.map(renderTrackRow).join('')}
@@ -577,12 +593,28 @@ function renderTrackRow(t) {
       <span class="name">${escapeHtml(t.title)}</span>
       <span class="badge ${t.status}">${t.status.replace('_', ' ')}</span>
       ${t.status !== 'found' ? `<button class="retry-btn" onclick="retryTrack(${t.id}, event)">Retry</button>` : ''}
+      <button class="delete-btn" onclick="deleteTrack(${t.id}, event)" title="Remove this track from Lyricdarr">&times;</button>
     </div>
   `;
 }
 
 function cssKey(key) { return key.replace(/[^a-zA-Z0-9]/g, '_'); }
-function escapeAttr(key) { return key.replace(/'/g, "\\'"); }
+
+// Safe to interpolate into a single-quoted JS string inside a double-quoted
+// HTML attribute (e.g. onclick="fn('${escapeAttr(x)}')") — escapes JS string
+// metacharacters first, then HTML-escapes so the value can't break out of the
+// attribute itself (a raw double quote here would otherwise let arbitrary
+// attributes/handlers be injected via crafted artist/album/title tags).
+function escapeAttr(str) {
+  return String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 function toggleExpand(key) {
   if (expanded.has(key)) expanded.delete(key); else expanded.add(key);
@@ -620,7 +652,10 @@ async function loadSongsPage() {
           <td>${escapeHtml(t.title || '—')}</td>
           <td>${escapeHtml(t.album || '—')}</td>
           <td><span class="badge ${t.status}">${t.status.replace('_', ' ')}</span></td>
-          <td>${t.status !== 'found' ? `<button class="retry-btn" onclick="retryTrack(${t.id}, event)">Retry</button>` : ''}</td>
+          <td style="display:flex;gap:6px;justify-content:flex-end">
+            ${t.status !== 'found' ? `<button class="retry-btn" onclick="retryTrack(${t.id}, event)">Retry</button>` : ''}
+            <button class="delete-btn" onclick="deleteTrack(${t.id}, event)" title="Remove this track from Lyricdarr">&times;</button>
+          </td>
         </tr>
       `).join('')}</tbody>
     </table>
@@ -663,10 +698,36 @@ async function retryTrack(id, evt) {
   loadStats();
 }
 
+async function deleteTrack(id, evt) {
+  if (evt) evt.stopPropagation();
+  if (!confirm('Remove this track from Lyricdarr? This only untracks it — no files are deleted.')) return;
+  await fetch(`/api/tracks/${id}`, { method: 'DELETE' });
+  loadLibrary();
+  loadStats();
+}
+
+async function deleteAlbum(artist, album, evt) {
+  if (evt) evt.stopPropagation();
+  if (!confirm(`Remove the album "${album}" (${artist}) from Lyricdarr? This only untracks it — no files are deleted.`)) return;
+  const params = new URLSearchParams({ artist, album });
+  await fetch(`/api/library/album?${params.toString()}`, { method: 'DELETE' });
+  loadLibrary();
+  loadStats();
+}
+
+async function deleteArtist(artist, evt) {
+  if (evt) evt.stopPropagation();
+  if (!confirm(`Remove all tracks by "${artist}" from Lyricdarr? This only untracks them — no files are deleted.`)) return;
+  const params = new URLSearchParams({ artist });
+  await fetch(`/api/library/artist?${params.toString()}`, { method: 'DELETE' });
+  loadLibrary();
+  loadStats();
+}
+
 // --- Background jobs + real-time progress (SSE) ---
 
 const PHASE_LABELS = {
-  scan: 'Scanning library',
+  scan: 'Refreshing library',
   fetch: 'Downloading missing lyrics',
   scan_and_fetch: 'Scanning & downloading lyrics',
   verify: 'Verifying LRC files on disk',
@@ -689,14 +750,17 @@ async function startJob(url) {
 function summarize(phase, extra) {
   if (!extra) return '';
   if (phase === 'scan') {
-    return `Scan complete — ${extra.scanned_files} files scanned, ${extra.new_tracks} new tracks added.`;
+    const removed = extra.removed_tracks ? `, ${extra.removed_tracks} removed (no longer on disk)` : '';
+    return `Scan complete — ${extra.scanned_files} files scanned, ${extra.new_tracks} new tracks added${removed}.`;
   }
   if (phase === 'fetch') {
     return `Done — found: ${(extra.found || 0) + (extra.found_unsynced || 0)}, not found: ${extra.not_found}, instrumental: ${extra.instrumental}, errors: ${extra.error}.`;
   }
   if (phase === 'scan_and_fetch') {
     const f = extra.fetch || {};
-    return `Done — ${extra.scan.scanned_files} files scanned, ${extra.scan.new_tracks} new; found: ${(f.found || 0) + (f.found_unsynced || 0)}, not found: ${f.not_found}.`;
+    const s = extra.scan || {};
+    const removed = s.removed_tracks ? `, ${s.removed_tracks} removed` : '';
+    return `Done — ${s.scanned_files} files scanned, ${s.new_tracks} new${removed}; found: ${(f.found || 0) + (f.found_unsynced || 0)}, not found: ${f.not_found}.`;
   }
   if (phase === 'verify') {
     return `Verify complete — now found: ${extra.now_found}, now missing: ${extra.now_missing}, unchanged: ${extra.unchanged}.`;

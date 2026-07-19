@@ -345,6 +345,49 @@ def api_retry_track(track_id: int):
     return {"track_id": track_id, "status": status}
 
 
+@app.delete("/api/tracks/{track_id}")
+def api_delete_track(track_id: int):
+    """Removes a single track from Lyricdarr's tracking. Does not touch any
+    files on disk — use this to untrack an entry manually."""
+    with get_conn() as conn:
+        existing = conn.execute("SELECT id FROM tracks WHERE id = ?", (track_id,)).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Track not found")
+        conn.execute("DELETE FROM tracks WHERE id = ?", (track_id,))
+        conn.commit()
+    logger.info(f"Deleted track {track_id}")
+    return {"deleted": 1}
+
+
+@app.delete("/api/library/album")
+def api_delete_album(artist: str, album: str):
+    """Removes every track for the given artist+album from Lyricdarr's
+    tracking. Does not touch any files on disk."""
+    with get_conn() as conn:
+        cur = conn.execute(
+            "DELETE FROM tracks WHERE COALESCE(artist, 'Unknown Artist') = ? "
+            "AND COALESCE(album, 'Unknown Album') = ?",
+            (artist, album),
+        )
+        conn.commit()
+    logger.info(f"Deleted album '{album}' by '{artist}' ({cur.rowcount} tracks)")
+    return {"deleted": cur.rowcount}
+
+
+@app.delete("/api/library/artist")
+def api_delete_artist(artist: str):
+    """Removes every track for the given artist from Lyricdarr's tracking.
+    Does not touch any files on disk."""
+    with get_conn() as conn:
+        cur = conn.execute(
+            "DELETE FROM tracks WHERE COALESCE(artist, 'Unknown Artist') = ?",
+            (artist,),
+        )
+        conn.commit()
+    logger.info(f"Deleted artist '{artist}' ({cur.rowcount} tracks)")
+    return {"deleted": cur.rowcount}
+
+
 # --- Settings ---
 
 

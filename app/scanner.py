@@ -47,7 +47,8 @@ def _count_audio_files(music_dir: str) -> int:
 
 
 def scan_library(music_dir: str, progress_cb=None) -> dict:
-    """Walk the music directory, upsert tracks into the DB.
+    """Walk the music directory, upsert tracks into the DB, and prune tracks
+    whose audio file has disappeared from disk (e.g. deleted/removed from Lidarr).
 
     Returns summary counts. If progress_cb is given, it's called as
     progress_cb(current=path, processed=n, total=n) after each file, so
@@ -56,6 +57,7 @@ def scan_library(music_dir: str, progress_cb=None) -> dict:
     found = 0
     added = 0
     already_has_lrc = 0
+    seen_paths = set()
 
     total = _count_audio_files(music_dir) if progress_cb else 0
 
@@ -69,6 +71,7 @@ def scan_library(music_dir: str, progress_cb=None) -> dict:
                 full_path = os.path.join(root, fname)
                 lrc_path = lrc_path_for(full_path)
                 found += 1
+                seen_paths.add(full_path)
 
                 if progress_cb:
                     progress_cb(current=full_path, processed=found, total=total)
@@ -103,6 +106,24 @@ def scan_library(music_dir: str, progress_cb=None) -> dict:
                 )
                 added += 1
 
+        # Prune tracks whose file vanished from disk since the last scan. Checked
+        # against seen_paths first (cheap) and confirmed with os.path.exists (safe
+        # against e.g. a temporarily unmounted music_dir cutting the walk short).
+        stale_ids = [
+            row["id"]
+            for row in conn.execute("SELECT id, path FROM tracks").fetchall()
+            if row["path"] not in seen_paths and not os.path.exists(row["path"])
+        ]
+        if stale_ids:
+            conn.executemany(
+                "DELETE FROM tracks WHERE id = ?", [(i,) for i in stale_ids]
+            )
+
         conn.commit()
 
-    return {"scanned_files": found, "new_tracks": added, "already_had_lrc": already_has_lrc}
+    return {
+        "scanned_files": found,
+        "new_tracks": added,
+        "already_had_lrc": already_has_lrc,
+        "removed_tracks": len(stale_ids),
+    }

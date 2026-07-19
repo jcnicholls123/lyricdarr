@@ -18,6 +18,10 @@ triggers, etc).
 - Tracks status per-track in a small SQLite DB (pending / found / not found / instrumental / error)
 - Web dashboard with real-time scan/fetch progress, browsable by Artist / Album / Song
   with a completion tick at each level, search, pagination, and per-track retry
+- "Refresh library" (scan) automatically removes tracks whose audio file has been
+  deleted from disk, alongside picking up newly added ones
+- Manual delete buttons on artists/albums/tracks in the dashboard, for untracking
+  entries yourself (doesn't touch anything on disk — just Lyricdarr's own record of it)
 - "Verify" action to re-check which `.lrc` files are actually on disk without a full rescan
 - In-app settings panel to change the auto-scan interval or turn it off, no restart needed
 - Auto re-scans and re-fetches on a schedule (default every 6 hours), like Bazarr's automatic search
@@ -73,7 +77,7 @@ building on the NAS itself required.
 5. **Environment Variables** (optional):
    - `SCAN_INTERVAL_HOURS` = `6` (or whatever cadence you want)
 6. Click **Install**.
-7. Once running, open `http://<your-truenas-ip>:8686`, click **Scan library**,
+7. Once running, open `http://<your-truenas-ip>:8686`, click **Refresh library**,
    then **Download missing lyrics**.
 
 After that, it re-scans and re-fetches automatically on the interval you set —
@@ -100,7 +104,8 @@ Since it's FastAPI under the hood, you get a free interactive API explorer at
 right after Lidarr imports something, via a webhook/custom script).
 
 Key endpoints:
-- `POST /api/scan` — rescan the library for new files (blocking, returns a summary)
+- `POST /api/scan` — rescan the library for new files, and remove tracks whose file
+  is no longer on disk (blocking, returns a summary including `removed_tracks`)
 - `POST /api/fetch` — attempt to fetch lyrics for anything not yet found (blocking)
 - `POST /api/scan-and-fetch` — do both in one call (blocking)
 - `POST /api/verify/start` — re-check existing tracks' `.lrc` files on disk without a
@@ -115,6 +120,9 @@ Key endpoints:
 - `GET /api/library/tree?group_by=artist|album|song&search=` — library grouped for
   browsing, with a completion tally at each level
 - `POST /api/tracks/{id}/retry` — retry a single track
+- `DELETE /api/tracks/{id}` — untrack a single track (no files touched on disk)
+- `DELETE /api/library/album?artist=&album=` — untrack every track in an album
+- `DELETE /api/library/artist?artist=` — untrack every track by an artist
 - `GET /api/settings` / `POST /api/settings` — read or update `scan_interval_hours`,
   `auto_scan_enabled`, and `netease_fallback_enabled` (persisted, applied immediately)
 - `POST /api/webhook/lidarr` — see **Lidarr integration** below

@@ -13,10 +13,15 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def fetch_one(track_row) -> str:
+def fetch_one(track_row) -> tuple:
     """Attempt to fetch and write lyrics for a single track row.
 
-    Returns the resulting status string: 'found', 'not_found', 'instrumental', 'error'
+    Returns (status, match_source). status is one of 'found', 'found_unsynced',
+    'not_found', 'instrumental', 'error'. match_source records which lookup
+    produced the result - 'lrclib_exact' (a confident /get match), or
+    'lrclib_fuzzy' / 'netease_fuzzy' (a text search fallback - matched on
+    duration and version qualifiers, but still a lower-confidence match worth
+    spot-checking) - or None when nothing was found/written.
     """
     artist = track_row["artist"]
     title = track_row["title"]
@@ -26,37 +31,41 @@ def fetch_one(track_row) -> str:
 
     try:
         result = lrclib.get_lyrics(artist, title, album, duration)
+        source = "lrclib_exact" if result is not None else None
+
         if result is None:
             result = lrclib.search_lyrics(artist, title, duration)
+            source = "lrclib_fuzzy" if result is not None else None
 
         if result is None and get_setting("netease_fallback_enabled", "true") == "true":
             result = netease.search_lyrics(artist, title, duration)
+            source = "netease_fuzzy" if result is not None else None
 
         if result is None:
-            return "not_found"
+            return "not_found", None
 
         if result["instrumental"] and not result["synced"] and not result["plain"]:
-            return "instrumental"
+            return "instrumental", source
 
         if result["synced"]:
             with open(lrc_path, "w", encoding="utf-8") as f:
                 f.write(result["synced"])
-            return "found"
+            return "found", source
 
         if result["plain"]:
             # No synced timing available, but plain lyrics exist. Still write them
             # as .lrc (unsynced) so at least something shows up, flagged distinctly.
             with open(lrc_path, "w", encoding="utf-8") as f:
                 f.write(result["plain"])
-            return "found_unsynced"
+            return "found_unsynced", source
 
-        return "not_found"
+        return "not_found", None
 
     except Exception as e:
         logger.exception(f"Error fetching lyrics for {artist} - {title}: {e}")
         track_row_error = str(e)
         _record_error(track_row["id"], track_row_error)
-        return "error"
+        return "error", None
 
 
 def _record_error(track_id: int, error: str):
@@ -91,12 +100,12 @@ def process_missing(limit: int = None, progress_cb=None) -> dict:
             label = f'{row["artist"] or "Unknown Artist"} - {row["title"]}'
             progress_cb(current=label, processed=i - 1, total=total)
 
-        status = fetch_one(row)
+        status, source = fetch_one(row)
         summary[status] = summary.get(status, 0) + 1
         with get_conn() as conn:
             conn.execute(
-                "UPDATE tracks SET status = ?, last_checked = ? WHERE id = ?",
-                (status, _now(), row["id"]),
+                "UPDATE tracks SET status = ?, match_source = ?, last_checked = ? WHERE id = ?",
+                (status, source, _now(), row["id"]),
             )
             conn.commit()
 
@@ -127,12 +136,17 @@ def verify_tracks(progress_cb=None) -> dict:
 
         has_lrc = os.path.exists(row["lrc_path"])
         old_status = row["status"]
+        # A file appearing/disappearing outside the app (manual drop, manual
+        # delete) invalidates whatever match_source was recorded before.
+        new_source = row["match_source"]
 
         if has_lrc and old_status not in ("found", "found_unsynced"):
             new_status = "found"
+            new_source = None
             summary["now_found"] += 1
         elif not has_lrc and old_status in ("found", "found_unsynced"):
             new_status = "pending"
+            new_source = None
             summary["now_missing"] += 1
         else:
             new_status = old_status
@@ -141,8 +155,8 @@ def verify_tracks(progress_cb=None) -> dict:
         if new_status != old_status:
             with get_conn() as conn:
                 conn.execute(
-                    "UPDATE tracks SET status = ?, last_checked = ? WHERE id = ?",
-                    (new_status, _now(), row["id"]),
+                    "UPDATE tracks SET status = ?, match_source = ?, last_checked = ? WHERE id = ?",
+                    (new_status, new_source, _now(), row["id"]),
                 )
                 conn.commit()
 
@@ -158,11 +172,11 @@ def retry_track(track_id: int) -> str:
         if not row:
             return "not_found_in_db"
 
-    status = fetch_one(row)
+    status, source = fetch_one(row)
     with get_conn() as conn:
         conn.execute(
-            "UPDATE tracks SET status = ?, last_checked = ? WHERE id = ?",
-            (status, _now(), track_id),
+            "UPDATE tracks SET status = ?, match_source = ?, last_checked = ? WHERE id = ?",
+            (status, source, _now(), track_id),
         )
         conn.commit()
     return status

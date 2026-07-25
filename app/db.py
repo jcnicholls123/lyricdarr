@@ -20,7 +20,8 @@ def init_db():
                 duration INTEGER,
                 status TEXT NOT NULL DEFAULT 'pending',
                 last_checked TEXT,
-                last_error TEXT
+                last_error TEXT,
+                match_source TEXT
             )
             """
         )
@@ -32,7 +33,16 @@ def init_db():
             )
             """
         )
+        _add_column_if_missing(conn, "tracks", "match_source", "TEXT")
         conn.commit()
+
+
+def _add_column_if_missing(conn, table: str, column: str, coltype: str):
+    """CREATE TABLE IF NOT EXISTS is a no-op on a table that already exists
+    from a previous version, so new columns need an explicit migration."""
+    existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
 
 
 @contextmanager

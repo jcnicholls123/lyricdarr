@@ -101,6 +101,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Lyricdarr", lifespan=lifespan)
 
 
+FUZZY_SOURCES = ("lrclib_fuzzy", "netease_fuzzy")
+
+
 @app.get("/api/status")
 def api_status():
     with get_conn() as conn:
@@ -108,10 +111,14 @@ def api_status():
         by_status = conn.execute(
             "SELECT status, COUNT(*) c FROM tracks GROUP BY status"
         ).fetchall()
+        needs_review = conn.execute(
+            "SELECT COUNT(*) c FROM tracks WHERE match_source IN (?, ?)", FUZZY_SOURCES
+        ).fetchone()["c"]
     return {
         "music_dir": MUSIC_DIR,
         "total_tracks": total,
         "by_status": {r["status"]: r["c"] for r in by_status},
+        "needs_review": needs_review,
     }
 
 
@@ -230,7 +237,11 @@ async def api_progress_stream(request: Request):
 
 @app.get("/api/tracks")
 def api_tracks(
-    status: str = None, search: str = None, page: int = 1, page_size: int = 100
+    status: str = None,
+    search: str = None,
+    needs_review: bool = False,
+    page: int = 1,
+    page_size: int = 100,
 ):
     page = max(page, 1)
     page_size = max(1, min(page_size, 500))
@@ -243,6 +254,11 @@ def api_tracks(
         query += " AND status = ?"
         count_query += " AND status = ?"
         params.append(status)
+    if needs_review:
+        placeholders = ", ".join("?" for _ in FUZZY_SOURCES)
+        query += f" AND match_source IN ({placeholders})"
+        count_query += f" AND match_source IN ({placeholders})"
+        params += list(FUZZY_SOURCES)
     if search:
         query += " AND (artist LIKE ? OR title LIKE ? OR album LIKE ?)"
         count_query += " AND (artist LIKE ? OR title LIKE ? OR album LIKE ?)"

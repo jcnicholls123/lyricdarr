@@ -275,6 +275,10 @@
   .badge.pending { color: var(--blue); }
   .badge.not_found, .badge.error { color: var(--red); }
   .badge.instrumental { color: var(--text-dim); }
+  /* Flags a lyric matched via fuzzy text search rather than an exact LRCLIB
+     hit - same "peak light" gold as the header accent, since it's a "worth a
+     second look", not an error. */
+  .badge.review { color: var(--gold); cursor: help; }
   .retry-btn {
     background: none;
     border: 1px solid var(--ink-line);
@@ -486,6 +490,7 @@
       <option value="not_found">Not found</option>
       <option value="instrumental">Instrumental</option>
       <option value="error">Error</option>
+      <option value="__needs_review">Needs review (fuzzy matched)</option>
     </select>
     <input type="text" id="search-box" placeholder="Search artist, title, album..." onkeyup="debouncedLoad()">
   </div>
@@ -549,6 +554,7 @@ async function loadStats() {
   const found = (data.by_status.found || 0) + (data.by_status.found_unsynced || 0);
   const missing = data.total_tracks - found - (data.by_status.instrumental || 0);
   const instrumental = data.by_status.instrumental || 0;
+  const needsReview = data.needs_review || 0;
   const fmt = n => n.toLocaleString();
   document.getElementById('stats').innerHTML = `
     <div class="tagblock-head">[library.lrc]<span class="cursor">&#9615;</span></div>
@@ -557,6 +563,7 @@ async function loadStats() {
       <span class="tk found"><span class="tk-key">[found]</span> <span class="tk-val">${fmt(found)}</span></span>
       <span class="tk missing"><span class="tk-key">[missing]</span> <span class="tk-val">${fmt(missing)}</span></span>
       <span class="tk inst"><span class="tk-key">[instrumental]</span> <span class="tk-val">${fmt(instrumental)}</span></span>
+      ${needsReview ? `<span class="tk review" style="cursor:pointer" onclick="jumpToReview()" title="Fuzzy-matched lyrics — click to review"><span class="tk-key" style="color:var(--gold)">[review]</span> <span class="tk-val" style="color:var(--gold)">${fmt(needsReview)}</span></span>` : ''}
     </div>
   `;
 }
@@ -572,6 +579,15 @@ function setGroupBy(mode) {
 }
 
 function onFilterChange() {
+  currentPage = 1;
+  loadLibrary();
+}
+
+function jumpToReview() {
+  groupBy = 'song';
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.group === 'song'));
+  document.getElementById('status-filter').style.display = '';
+  document.getElementById('status-filter').value = '__needs_review';
   currentPage = 1;
   loadLibrary();
 }
@@ -668,11 +684,20 @@ function renderAlbumFlat(album) {
   `;
 }
 
+const FUZZY_SOURCES = ['lrclib_fuzzy', 'netease_fuzzy'];
+
+function reviewBadgeHtml(t) {
+  if (!FUZZY_SOURCES.includes(t.match_source)) return '';
+  const via = t.match_source === 'netease_fuzzy' ? 'NetEase' : 'LRCLIB';
+  return `<span class="badge review" title="Matched via ${via} fuzzy search, not an exact hit — worth spot-checking against the audio">review</span>`;
+}
+
 function renderTrackRow(t) {
   return `
     <div class="track-row">
       <span class="name">${escapeHtml(t.title)}</span>
       <span class="badge ${t.status}">${t.status.replace('_', ' ')}</span>
+      ${reviewBadgeHtml(t)}
       ${t.status !== 'found' ? `<button class="retry-btn" onclick="retryTrack(${t.id}, event)">Retry</button>` : ''}
       <button class="delete-btn" onclick="deleteTrack(${t.id}, event)" title="Remove this track from Lyricdarr">&#9167;</button>
     </div>
@@ -708,7 +733,11 @@ async function loadSongsPage() {
   const status = document.getElementById('status-filter').value;
   const search = document.getElementById('search-box').value;
   const params = new URLSearchParams({ page: currentPage, page_size: pageSize });
-  if (status) params.set('status', status);
+  if (status === '__needs_review') {
+    params.set('needs_review', 'true');
+  } else if (status) {
+    params.set('status', status);
+  }
   if (search) params.set('search', search);
   const res = await fetch('/api/tracks?' + params.toString());
   const data = await res.json();
@@ -733,7 +762,7 @@ async function loadSongsPage() {
             <td>${escapeHtml(t.artist || '—')}</td>
             <td>${escapeHtml(t.title || '—')}</td>
             <td>${escapeHtml(t.album || '—')}</td>
-            <td><span class="badge ${t.status}">${t.status.replace('_', ' ')}</span></td>
+            <td><span class="badge ${t.status}">${t.status.replace('_', ' ')}</span> ${reviewBadgeHtml(t)}</td>
             <td style="display:flex;gap:6px;justify-content:flex-end">
               ${t.status !== 'found' ? `<button class="retry-btn" onclick="retryTrack(${t.id}, event)">Retry</button>` : ''}
               <button class="delete-btn" onclick="deleteTrack(${t.id}, event)" title="Remove this track from Lyricdarr">&#9167;</button>

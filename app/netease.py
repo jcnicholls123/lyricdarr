@@ -1,6 +1,8 @@
 import logging
 import requests
 
+from app import matching
+
 logger = logging.getLogger("lyricdarr.netease")
 
 SEARCH_URL = "https://music.163.com/api/search/get"
@@ -14,8 +16,6 @@ TIMEOUT = 15
 # NetEase marks pure-instrumental tracks with this line instead of real lyrics.
 INSTRUMENTAL_MARKER = "纯音乐，请欣赏"
 
-DURATION_TOLERANCE = 3  # seconds; search candidates outside this are a different recording
-
 
 def search_lyrics(artist: str, title: str, duration: int = None):
     """Search NetEase Cloud Music for a track and fetch its lyrics.
@@ -24,8 +24,10 @@ def search_lyrics(artist: str, title: str, duration: int = None):
     no API key needed, but it's not a documented public API. Used as a
     fallback when LRCLIB has no match. Since this is a fuzzy text search,
     the top hit can be a cover, live version, or otherwise differently-timed
-    recording; when duration is known, candidates whose reported length
-    doesn't match are skipped. Returns a dict with 'synced' (str or None),
+    recording; candidates whose title carries different version qualifiers
+    (e.g. local track is "(Acoustic)" but the candidate isn't) are skipped,
+    and when duration is known, candidates whose reported length doesn't
+    match are skipped too. Returns a dict with 'synced' (str or None),
     'plain' (str or None), 'instrumental' (bool), or None if nothing usable
     was found.
     """
@@ -49,11 +51,16 @@ def search_lyrics(artist: str, title: str, duration: int = None):
     if not songs:
         return None
 
+    wanted_tags = matching.version_tags(title)
+    songs = [s for s in songs if matching.version_tags(s.get("name")) == wanted_tags]
+    if not songs:
+        return None
+
     if duration:
         songs = [
             s for s in songs
             if s.get("duration") is not None
-            and abs(round(s["duration"] / 1000) - duration) <= DURATION_TOLERANCE
+            and matching.duration_matches(round(s["duration"] / 1000), duration)
         ]
         if not songs:
             return None

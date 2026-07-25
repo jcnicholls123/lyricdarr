@@ -1,6 +1,8 @@
 import logging
 import requests
 
+from app import matching
+
 logger = logging.getLogger("lyricdarr.lrclib")
 
 BASE_URL = "https://lrclib.net/api"
@@ -41,16 +43,16 @@ def get_lyrics(artist: str, title: str, album: str = None, duration: int = None)
     return None
 
 
-DURATION_TOLERANCE = 3  # seconds; fuzzy-search candidates outside this are a different recording
-
-
 def search_lyrics(artist: str, title: str, duration: int = None):
     """Fallback fuzzy search via /search endpoint when /get finds no exact match.
 
     Since this is a text search rather than an exact lookup, results can include
     covers, live versions, or other recordings of the "same" song with different
     timing. When duration is known, candidates whose reported duration doesn't
-    match are rejected so we don't attach lyrics timed to a different recording.
+    match are rejected, and candidates whose title carries different version
+    qualifiers (e.g. local track is "(Acoustic)" but the candidate isn't, or
+    vice versa) are rejected too, so we don't attach lyrics timed to a
+    different recording.
 
     Returns the best candidate dict (same shape as get_lyrics) or None.
     """
@@ -68,12 +70,13 @@ def search_lyrics(artist: str, title: str, duration: int = None):
     if not results:
         return None
 
+    wanted_tags = matching.version_tags(title)
+    results = [r for r in results if matching.version_tags(r.get("trackName")) == wanted_tags]
+    if not results:
+        return None
+
     if duration:
-        results = [
-            r for r in results
-            if r.get("duration") is not None
-            and abs(r["duration"] - duration) <= DURATION_TOLERANCE
-        ]
+        results = [r for r in results if matching.duration_matches(r.get("duration"), duration)]
         if not results:
             return None
 

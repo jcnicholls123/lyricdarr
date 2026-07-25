@@ -15,9 +15,11 @@ triggers, etc).
 - Reads artist/title/album/duration tags via `mutagen`
 - Queries LRCLIB for an exact match, falls back to fuzzy search
 - Saves synced `.lrc` lyrics matching the track's filename
-- Tracks status per-track in a small SQLite DB (pending / found / not found / instrumental / error)
+- Tracks status per-track in a small SQLite DB (pending / found / not found /
+  instrumental / pending review / error)
 - Web dashboard with real-time scan/fetch progress, browsable by Artist / Album / Song
-  with a completion tick at each level, search, pagination, and per-track retry
+  with a completion tick at each level, search, pagination, per-track retry, and a
+  preview-before-you-approve review queue for lower-confidence fuzzy matches
 - "Refresh library" (scan) automatically removes tracks whose audio file has been
   deleted from disk, alongside picking up newly added ones
 - Manual delete buttons on artists/albums/tracks in the dashboard, for untracking
@@ -120,6 +122,8 @@ Key endpoints:
 - `GET /api/library/tree?group_by=artist|album|song&search=` — library grouped for
   browsing, with a completion tally at each level
 - `POST /api/tracks/{id}/retry` — retry a single track
+- `POST /api/tracks/{id}/approve` — write a pending fuzzy-matched lyric candidate to disk
+- `POST /api/tracks/{id}/reject` — discard a pending fuzzy-matched candidate without writing it
 - `DELETE /api/tracks/{id}` — untrack a single track (no files touched on disk)
 - `DELETE /api/library/album?artist=&album=` — untrack every track in an album
 - `DELETE /api/library/artist?artist=` — untrack every track by an artist
@@ -135,6 +139,14 @@ finds anything, and the "Use NetEase Cloud Music as a fallback" setting is on
 same one NetEase's own web player calls, no API key needed) but has good synced-lyrics
 coverage, including plenty of non-Chinese/Western tracks. Toggle it off in Settings if
 you'd rather only ever use LRCLIB.
+
+An exact LRCLIB `/get` hit is written straight to disk — it's a confident match.
+Anything from a fuzzy text search (LRCLIB `/search` or NetEase) goes through
+duration, version-qualifier (acoustic/live/remix/etc.), artist, and — for NetEase —
+CJK-language consistency checks first, but a text search can still surface the wrong
+recording. Those results are held as `pending_review` instead of being written
+automatically: the dashboard shows a `[review]` count, and each one has a **Review**
+button that previews the candidate lyrics before you **Approve & save** or **Reject** it.
 
 Musixmatch was considered but skipped: their free developer API only returns a ~30%
 lyrics snippet, not full synced lyrics, unless you have a paid commercial license — not

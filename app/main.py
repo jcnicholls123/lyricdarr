@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from app.db import init_db, get_conn, get_setting, set_setting
 from app.scanner import scan_library
-from app.fetcher import process_missing, retry_track, verify_tracks
+from app.fetcher import process_missing, retry_track, verify_tracks, approve_track, reject_track
 from app import state as job_state
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
@@ -101,9 +101,6 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Lyricdarr", lifespan=lifespan)
 
 
-FUZZY_SOURCES = ("lrclib_fuzzy", "netease_fuzzy")
-
-
 @app.get("/api/status")
 def api_status():
     with get_conn() as conn:
@@ -111,14 +108,12 @@ def api_status():
         by_status = conn.execute(
             "SELECT status, COUNT(*) c FROM tracks GROUP BY status"
         ).fetchall()
-        needs_review = conn.execute(
-            "SELECT COUNT(*) c FROM tracks WHERE match_source IN (?, ?)", FUZZY_SOURCES
-        ).fetchone()["c"]
+    by_status = {r["status"]: r["c"] for r in by_status}
     return {
         "music_dir": MUSIC_DIR,
         "total_tracks": total,
-        "by_status": {r["status"]: r["c"] for r in by_status},
-        "needs_review": needs_review,
+        "by_status": by_status,
+        "needs_review": by_status.get("pending_review", 0),
     }
 
 
@@ -239,7 +234,6 @@ async def api_progress_stream(request: Request):
 def api_tracks(
     status: str = None,
     search: str = None,
-    needs_review: bool = False,
     page: int = 1,
     page_size: int = 100,
 ):
@@ -254,11 +248,6 @@ def api_tracks(
         query += " AND status = ?"
         count_query += " AND status = ?"
         params.append(status)
-    if needs_review:
-        placeholders = ", ".join("?" for _ in FUZZY_SOURCES)
-        query += f" AND match_source IN ({placeholders})"
-        count_query += f" AND match_source IN ({placeholders})"
-        params += list(FUZZY_SOURCES)
     if search:
         query += " AND (artist LIKE ? OR title LIKE ? OR album LIKE ?)"
         count_query += " AND (artist LIKE ? OR title LIKE ? OR album LIKE ?)"
@@ -356,6 +345,27 @@ def api_library_tree(search: str = None, group_by: str = "artist"):
 @app.post("/api/tracks/{track_id}/retry")
 def api_retry_track(track_id: int):
     status = retry_track(track_id)
+    if status == "not_found_in_db":
+        raise HTTPException(status_code=404, detail="Track not found")
+    return {"track_id": track_id, "status": status}
+
+
+@app.post("/api/tracks/{track_id}/approve")
+def api_approve_track(track_id: int):
+    """Writes a pending fuzzy-matched lyric candidate to disk after the user
+    has previewed it and confirmed it's correct."""
+    status = approve_track(track_id)
+    if status == "not_found_in_db":
+        raise HTTPException(status_code=404, detail="Track not found")
+    if status == "no_pending_review":
+        raise HTTPException(status_code=400, detail="Track has no pending lyrics to approve")
+    return {"track_id": track_id, "status": status}
+
+
+@app.post("/api/tracks/{track_id}/reject")
+def api_reject_track(track_id: int):
+    """Discards a pending fuzzy-matched lyric candidate without writing it."""
+    status = reject_track(track_id)
     if status == "not_found_in_db":
         raise HTTPException(status_code=404, detail="Track not found")
     return {"track_id": track_id, "status": status}

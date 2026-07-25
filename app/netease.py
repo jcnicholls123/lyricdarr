@@ -22,14 +22,17 @@ def search_lyrics(artist: str, title: str, duration: int = None):
 
     This is an unofficial endpoint (the one NetEase's own web player calls) -
     no API key needed, but it's not a documented public API. Used as a
-    fallback when LRCLIB has no match. Since this is a fuzzy text search,
-    the top hit can be a cover, live version, or otherwise differently-timed
-    recording; candidates whose title carries different version qualifiers
-    (e.g. local track is "(Acoustic)" but the candidate isn't) are skipped,
-    and when duration is known, candidates whose reported length doesn't
-    match are skipped too. Returns a dict with 'synced' (str or None),
-    'plain' (str or None), 'instrumental' (bool), or None if nothing usable
-    was found.
+    fallback when LRCLIB has no match. Since this is a fuzzy text search
+    against a primarily Chinese-language catalogue, the top hit can easily be
+    a same-titled track by a completely different (often Chinese) artist -
+    candidates whose artist doesn't loosely match the local tag are skipped,
+    as are candidates whose title carries different version qualifiers (e.g.
+    local track is "(Acoustic)" but the candidate isn't), and when duration
+    is known, candidates whose reported length doesn't match are skipped
+    too. As a last check, if the local artist/title have no CJK characters
+    but the fetched lyrics do, that's also treated as a mismatch and
+    rejected. Returns a dict with 'synced' (str or None), 'plain' (str or
+    None), 'instrumental' (bool), or None if nothing usable was found.
     """
     query = f"{title} {artist}".strip() if artist else (title or "")
     if not query:
@@ -48,6 +51,13 @@ def search_lyrics(artist: str, title: str, duration: int = None):
         logger.warning(f"NetEase search failed for {artist} - {title}: {e}")
         return None
 
+    if not songs:
+        return None
+
+    songs = [
+        s for s in songs
+        if matching.artist_matches(artist, [a.get("name") for a in (s.get("artists") or [])])
+    ]
     if not songs:
         return None
 
@@ -88,5 +98,9 @@ def search_lyrics(artist: str, title: str, duration: int = None):
 
     if INSTRUMENTAL_MARKER in lrc:
         return {"synced": None, "plain": None, "instrumental": True}
+
+    if matching.has_cjk(lrc) and not matching.has_cjk(artist) and not matching.has_cjk(title):
+        logger.info(f"NetEase result for {artist} - {title} looked like a wrong-song CJK match, skipping")
+        return None
 
     return {"synced": lrc, "plain": None, "instrumental": False}

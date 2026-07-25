@@ -21,7 +21,9 @@ def init_db():
                 status TEXT NOT NULL DEFAULT 'pending',
                 last_checked TEXT,
                 last_error TEXT,
-                match_source TEXT
+                match_source TEXT,
+                pending_synced TEXT,
+                pending_plain TEXT
             )
             """
         )
@@ -34,6 +36,8 @@ def init_db():
             """
         )
         _add_column_if_missing(conn, "tracks", "match_source", "TEXT")
+        _add_column_if_missing(conn, "tracks", "pending_synced", "TEXT")
+        _add_column_if_missing(conn, "tracks", "pending_plain", "TEXT")
         conn.commit()
 
 

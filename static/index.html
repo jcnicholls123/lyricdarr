@@ -137,6 +137,13 @@
     box-shadow: none;
   }
   button.secondary:active { box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.3); }
+  button.danger {
+    background: var(--ink-raised);
+    border: 1px solid var(--red);
+    color: var(--red);
+    box-shadow: none;
+  }
+  button.danger:hover { background: var(--red); color: var(--ink); opacity: 1; }
   #scan-btn::before { content: '\21BB\A0'; }
   #verify-btn::before { content: '\2713\A0'; }
   #fetch-btn::before { content: '\2193\A0'; }
@@ -275,10 +282,9 @@
   .badge.pending { color: var(--blue); }
   .badge.not_found, .badge.error { color: var(--red); }
   .badge.instrumental { color: var(--text-dim); }
-  /* Flags a lyric matched via fuzzy text search rather than an exact LRCLIB
-     hit - same "peak light" gold as the header accent, since it's a "worth a
-     second look", not an error. */
-  .badge.review { color: var(--gold); cursor: help; }
+  /* A fuzzy-matched candidate awaiting approval - same "peak light" gold as
+     the header accent, since it's a "worth a look", not an error. */
+  .badge.pending_review { color: var(--gold); }
   .retry-btn {
     background: none;
     border: 1px solid var(--ink-line);
@@ -442,6 +448,32 @@
   .field.checkbox input[type=checkbox]:checked::after { transform: translateX(16px); background: var(--ink); }
   .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 
+  /* Lyrics review modal */
+  .preview-modal { width: 560px; }
+  .preview-lyrics {
+    margin: 0;
+    max-height: 50vh;
+    overflow-y: auto;
+    background: var(--ink);
+    border: 1px solid var(--ink-line);
+    border-radius: 4px;
+    padding: 12px 14px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .review-btn {
+    background: none;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    padding: 4px 10px;
+    font-size: 11px;
+  }
+  .review-btn:hover { background: var(--gold); color: var(--ink); opacity: 1; }
+
   @media (prefers-reduced-motion: reduce) {
     .brand-mark, .tagblock-head .cursor, .progress-msg.running::after, .progress-bar-fill.indeterminate {
       animation: none !important;
@@ -490,7 +522,7 @@
       <option value="not_found">Not found</option>
       <option value="instrumental">Instrumental</option>
       <option value="error">Error</option>
-      <option value="__needs_review">Needs review (fuzzy matched)</option>
+      <option value="pending_review">Needs review (fuzzy matched)</option>
     </select>
     <input type="text" id="search-box" placeholder="Search artist, title, album..." onkeyup="debouncedLoad()">
   </div>
@@ -523,6 +555,22 @@
     <div class="modal-actions">
       <button class="secondary" onclick="closeSettings()">Cancel</button>
       <button onclick="saveSettings()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="preview-overlay">
+  <div class="modal preview-modal">
+    <h2>[review lyrics]</h2>
+    <div class="field" style="margin-bottom:10px">
+      <div id="preview-title" style="color:var(--text);font-size:14px"></div>
+      <div id="preview-source" style="color:var(--text-dim);font-size:12px;margin-top:2px"></div>
+    </div>
+    <pre id="preview-lyrics" class="preview-lyrics"></pre>
+    <div class="modal-actions">
+      <button class="secondary" onclick="closePreview()">Close</button>
+      <button class="danger" onclick="rejectPending()">Reject</button>
+      <button onclick="approvePending()">Approve &amp; save</button>
     </div>
   </div>
 </div>
@@ -587,7 +635,7 @@ function jumpToReview() {
   groupBy = 'song';
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.group === 'song'));
   document.getElementById('status-filter').style.display = '';
-  document.getElementById('status-filter').value = '__needs_review';
+  document.getElementById('status-filter').value = 'pending_review';
   currentPage = 1;
   loadLibrary();
 }
@@ -684,21 +732,33 @@ function renderAlbumFlat(album) {
   `;
 }
 
-const FUZZY_SOURCES = ['lrclib_fuzzy', 'netease_fuzzy'];
+// Tracks are re-rendered from fresh API responses on every load, so caching
+// each one by id here (as a render side-effect) is enough to let the preview
+// modal read pending lyrics text without a dedicated fetch-by-id endpoint.
+const trackCache = {};
 
-function reviewBadgeHtml(t) {
-  if (!FUZZY_SOURCES.includes(t.match_source)) return '';
-  const via = t.match_source === 'netease_fuzzy' ? 'NetEase' : 'LRCLIB';
-  return `<span class="badge review" title="Matched via ${via} fuzzy search, not an exact hit — worth spot-checking against the audio">review</span>`;
+function cacheTrack(t) {
+  trackCache[t.id] = t;
+  return t;
+}
+
+function actionButtonsHtml(t) {
+  if (t.status === 'pending_review') {
+    return `<button class="review-btn" onclick="openPreview(${t.id}, event)">Review</button>`;
+  }
+  if (t.status !== 'found') {
+    return `<button class="retry-btn" onclick="retryTrack(${t.id}, event)">Retry</button>`;
+  }
+  return '';
 }
 
 function renderTrackRow(t) {
+  cacheTrack(t);
   return `
     <div class="track-row">
       <span class="name">${escapeHtml(t.title)}</span>
       <span class="badge ${t.status}">${t.status.replace('_', ' ')}</span>
-      ${reviewBadgeHtml(t)}
-      ${t.status !== 'found' ? `<button class="retry-btn" onclick="retryTrack(${t.id}, event)">Retry</button>` : ''}
+      ${actionButtonsHtml(t)}
       <button class="delete-btn" onclick="deleteTrack(${t.id}, event)" title="Remove this track from Lyricdarr">&#9167;</button>
     </div>
   `;
@@ -733,11 +793,7 @@ async function loadSongsPage() {
   const status = document.getElementById('status-filter').value;
   const search = document.getElementById('search-box').value;
   const params = new URLSearchParams({ page: currentPage, page_size: pageSize });
-  if (status === '__needs_review') {
-    params.set('needs_review', 'true');
-  } else if (status) {
-    params.set('status', status);
-  }
+  if (status) params.set('status', status);
   if (search) params.set('search', search);
   const res = await fetch('/api/tracks?' + params.toString());
   const data = await res.json();
@@ -757,18 +813,18 @@ async function loadSongsPage() {
     <div class="table-scroll">
       <table>
         <thead><tr><th>Artist</th><th>Title</th><th>Album</th><th>Status</th><th></th></tr></thead>
-        <tbody>${data.tracks.map(t => `
+        <tbody>${data.tracks.map(t => { cacheTrack(t); return `
           <tr>
             <td>${escapeHtml(t.artist || '—')}</td>
             <td>${escapeHtml(t.title || '—')}</td>
             <td>${escapeHtml(t.album || '—')}</td>
-            <td><span class="badge ${t.status}">${t.status.replace('_', ' ')}</span> ${reviewBadgeHtml(t)}</td>
+            <td><span class="badge ${t.status}">${t.status.replace('_', ' ')}</span></td>
             <td style="display:flex;gap:6px;justify-content:flex-end">
-              ${t.status !== 'found' ? `<button class="retry-btn" onclick="retryTrack(${t.id}, event)">Retry</button>` : ''}
+              ${actionButtonsHtml(t)}
               <button class="delete-btn" onclick="deleteTrack(${t.id}, event)" title="Remove this track from Lyricdarr">&#9167;</button>
             </td>
           </tr>
-        `).join('')}</tbody>
+        `; }).join('')}</tbody>
       </table>
     </div>
   `;
@@ -972,6 +1028,53 @@ async function saveSettings() {
 
 document.getElementById('settings-overlay').addEventListener('click', (e) => {
   if (e.target.id === 'settings-overlay') closeSettings();
+});
+
+// --- Lyrics review/preview ---
+
+const SOURCE_LABELS = {
+  lrclib_fuzzy: 'Matched via LRCLIB fuzzy search (not an exact hit) — check it lines up with the track.',
+  netease_fuzzy: 'Matched via NetEase fuzzy search (not an exact hit) — check it lines up with the track.',
+};
+
+let previewTrackId = null;
+
+function openPreview(id, evt) {
+  if (evt) evt.stopPropagation();
+  const t = trackCache[id];
+  if (!t) return;
+  previewTrackId = id;
+  document.getElementById('preview-title').textContent = `${t.artist || 'Unknown Artist'} — ${t.title || ''}`;
+  document.getElementById('preview-source').textContent = SOURCE_LABELS[t.match_source] || '';
+  document.getElementById('preview-lyrics').textContent =
+    t.pending_synced || t.pending_plain || '(no lyrics text available)';
+  document.getElementById('preview-overlay').classList.add('open');
+}
+
+function closePreview() {
+  document.getElementById('preview-overlay').classList.remove('open');
+  previewTrackId = null;
+}
+
+async function approvePending() {
+  if (previewTrackId == null) return;
+  await fetch(`/api/tracks/${previewTrackId}/approve`, { method: 'POST' });
+  closePreview();
+  loadLibrary();
+  loadStats();
+}
+
+async function rejectPending() {
+  if (previewTrackId == null) return;
+  if (!confirm('Discard this candidate? The track goes back to not-found and can be retried later.')) return;
+  await fetch(`/api/tracks/${previewTrackId}/reject`, { method: 'POST' });
+  closePreview();
+  loadLibrary();
+  loadStats();
+}
+
+document.getElementById('preview-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'preview-overlay') closePreview();
 });
 
 // --- Init ---

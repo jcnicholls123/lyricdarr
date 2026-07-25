@@ -41,8 +41,16 @@ def get_lyrics(artist: str, title: str, album: str = None, duration: int = None)
     return None
 
 
-def search_lyrics(artist: str, title: str):
+DURATION_TOLERANCE = 3  # seconds; fuzzy-search candidates outside this are a different recording
+
+
+def search_lyrics(artist: str, title: str, duration: int = None):
     """Fallback fuzzy search via /search endpoint when /get finds no exact match.
+
+    Since this is a text search rather than an exact lookup, results can include
+    covers, live versions, or other recordings of the "same" song with different
+    timing. When duration is known, candidates whose reported duration doesn't
+    match are rejected so we don't attach lyrics timed to a different recording.
 
     Returns the best candidate dict (same shape as get_lyrics) or None.
     """
@@ -59,6 +67,15 @@ def search_lyrics(artist: str, title: str):
     results = resp.json()
     if not results:
         return None
+
+    if duration:
+        results = [
+            r for r in results
+            if r.get("duration") is not None
+            and abs(r["duration"] - duration) <= DURATION_TOLERANCE
+        ]
+        if not results:
+            return None
 
     # Prefer the first result that has synced lyrics
     for r in results:

@@ -14,15 +14,20 @@ TIMEOUT = 15
 # NetEase marks pure-instrumental tracks with this line instead of real lyrics.
 INSTRUMENTAL_MARKER = "纯音乐，请欣赏"
 
+DURATION_TOLERANCE = 3  # seconds; search candidates outside this are a different recording
 
-def search_lyrics(artist: str, title: str):
+
+def search_lyrics(artist: str, title: str, duration: int = None):
     """Search NetEase Cloud Music for a track and fetch its lyrics.
 
     This is an unofficial endpoint (the one NetEase's own web player calls) -
     no API key needed, but it's not a documented public API. Used as a
-    fallback when LRCLIB has no match. Returns a dict with 'synced'
-    (str or None), 'plain' (str or None), 'instrumental' (bool), or None if
-    nothing usable was found.
+    fallback when LRCLIB has no match. Since this is a fuzzy text search,
+    the top hit can be a cover, live version, or otherwise differently-timed
+    recording; when duration is known, candidates whose reported length
+    doesn't match are skipped. Returns a dict with 'synced' (str or None),
+    'plain' (str or None), 'instrumental' (bool), or None if nothing usable
+    was found.
     """
     query = f"{title} {artist}".strip() if artist else (title or "")
     if not query:
@@ -43,6 +48,15 @@ def search_lyrics(artist: str, title: str):
 
     if not songs:
         return None
+
+    if duration:
+        songs = [
+            s for s in songs
+            if s.get("duration") is not None
+            and abs(round(s["duration"] / 1000) - duration) <= DURATION_TOLERANCE
+        ]
+        if not songs:
+            return None
 
     song_id = songs[0].get("id")
     if not song_id:

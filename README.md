@@ -139,8 +139,9 @@ you'd rather only ever use LRCLIB.
 Musixmatch was considered but skipped: their free developer API only returns a ~30%
 lyrics snippet, not full synced lyrics, unless you have a paid commercial license — not
 much of a fallback. If you have that kind of Musixmatch access, `app/netease.py` is a
-small, self-contained example of the provider shape (`search_lyrics(artist, title) ->
-{"synced", "plain", "instrumental"} | None`) to copy for your own provider module.
+small, self-contained example of the provider shape (`search_lyrics(artist, title,
+duration) -> {"synced", "plain", "instrumental"} | None`) to copy for your own
+provider module.
 
 ## Lidarr integration
 

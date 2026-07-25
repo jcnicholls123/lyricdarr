@@ -27,10 +27,10 @@ def fetch_one(track_row) -> str:
     try:
         result = lrclib.get_lyrics(artist, title, album, duration)
         if result is None:
-            result = lrclib.search_lyrics(artist, title)
+            result = lrclib.search_lyrics(artist, title, duration)
 
         if result is None and get_setting("netease_fallback_enabled", "true") == "true":
-            result = netease.search_lyrics(artist, title)
+            result = netease.search_lyrics(artist, title, duration)
 
         if result is None:
             return "not_found"
